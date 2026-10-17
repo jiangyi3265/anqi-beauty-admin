@@ -42,7 +42,7 @@ npm ci
 npm run dev -- --port 5174
 ```
 
-访问 `http://localhost:5174`。默认 `/dev-api` 请求由 `vite.config.js` 代理到 `http://localhost:8080`，Java 再通过内部密钥连接 Node 业务服务。
+访问 `http://127.0.0.1:5174`，开发服务默认仅监听本机。默认 `/dev-api` 请求由 `vite.config.js` 代理到 `http://localhost:8080`，Java 再通过内部密钥连接 Node 业务服务。
 
 `.env.development` 与 `.env.production` 只保存可以公开的标题和接口路径，均纳入版本管理。按需创建 `.env.development.local` / `.env.production.local` 覆盖 `VITE_APP_TITLE`、`VITE_APP_BASE_API` 等参数；`VITE_*` 会进入浏览器产物，禁止放置密码或密钥。
 
@@ -78,3 +78,7 @@ vite.config.js    开发代理与构建配置
 ## 简历描述示例
 
 参与 Vue 3 / Element Plus 美容门店管理后台开发，完成商品套餐、预约核销、员工排班与收益规则配置界面，并结合动态路由及按钮权限实现运营角色分工。
+
+## 依赖检查状态
+
+构建和业务回归已通过，第三方依赖仍有待升级的安全告警，详情见 [依赖复查记录](docs/DEPENDENCY_REVIEW.md)。
