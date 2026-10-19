@@ -26,13 +26,14 @@
         <section class="referral" aria-label="分红池">
           <div class="referral-head"><div><h2>分红池 · 办卡会员（静态收益）</h2><p class="help">{{poolText}}</p></div><el-button v-if="canEdit&&!poolEditing" type="primary" plain :disabled="saving||!!editing" @click="editPool">配置</el-button></div>
           <el-form v-if="poolEditing" label-position="top" :disabled="saving" @submit.prevent="savePool">
-            <p class="help">每个周期按北京时间结束后自动结算一次：所有持有已付款、未退款VIP套餐的会员，按办卡金额占全部办卡金额的比例分配奖池，分到元角分，零头按比例补齐。退款或停用的会员从下一期起不再参与，已发分红不冲回。启用后各套餐的静态收益不再对新订单发放。不补发启用前或关闭期间的周期。</p>
+            <p class="help">每个周期按北京时间结束后自动结算一次，按办卡金额比例分配奖池。设置活动天数（如3天）时，每轮第1天分给当天办卡的会员，第2天分给第1–2天办卡的会员，第3天分给第1–3天办卡的会员，之后开始新一轮；活动天数为0时分给全部持有已付款、未退款VIP套餐的会员，分到元角分，零头按比例补齐。退款或停用的会员从下一期起不再参与，已发分红不冲回。启用后各套餐的静态收益不再对新订单发放。不补发启用前或关闭期间的周期。</p>
             <el-form-item label="是否启用"><el-switch v-model="poolForm.enabled" active-text="启用" inactive-text="关闭"/></el-form-item>
             <div class="referral-fields">
-              <el-form-item label="奖池来源"><el-select v-model="poolForm.source"><el-option value="fixed" label="固定奖池：基数 × 比例"/><el-option value="sales" label="本期新增办卡金额 × 比例"/></el-select></el-form-item>
+              <el-form-item label="奖池来源"><el-select v-model="poolForm.source"><el-option value="revenue" label="当期营业额（全部已付款订单）× 比例"/><el-option value="sales" label="当期新增办卡金额 × 比例"/><el-option value="fixed" label="固定奖池：基数 × 比例"/></el-select></el-form-item>
               <el-form-item label="结算周期"><el-select v-model="poolForm.cycle"><el-option value="daily" label="每天"/><el-option value="weekly" label="每周（7天）"/><el-option value="monthly" label="每月"/></el-select></el-form-item>
               <el-form-item v-if="poolForm.source==='fixed'" label="奖池基数（元）"><el-input-number v-model="poolForm.baseAmount" :min="0" :max="100000000" :precision="2"/></el-form-item>
               <el-form-item label="奖池比例（%）"><el-input-number v-model="poolForm.percent" :min="0" :max="100" :precision="2"/></el-form-item>
+              <el-form-item label="每轮活动天数（0为不分轮次）"><el-input-number v-model="poolForm.activityDays" :min="0" :max="365" :precision="0" :disabled="poolForm.cycle!=='daily'"/></el-form-item>
               <el-form-item label="开始日期（北京时间，留空为今天）"><el-date-picker v-model="poolForm.startDate" type="date" value-format="YYYY-MM-DD" placeholder="今天" :disabled-date="d=>beijingDay(d.getTime()+86400000-1)<beijingDay(Date.now())"/></el-form-item>
             </div>
             <section class="preview" aria-label="分红池试算"><h3>保存前试算</h3><p>{{poolPreview}}</p></section>
@@ -79,6 +80,7 @@
         <p class="help">分红池每期结算一次，金额已计入对应会员的静态收益；会员明细见「入账明细」中类型为「分红池」的记录。</p>
         <el-table :data="poolOverview.settlements||[]" v-loading="loading" stripe empty-text="暂无分红记录，启用分红池后每期结束自动生成">
           <el-table-column prop="label" label="结算周期" min-width="200"/>
+          <el-table-column label="活动" width="130"><template #default="{row}">{{row.activityRound?`第${row.activityRound}轮第${row.activityDay}天`:'—'}}</template></el-table-column>
           <el-table-column label="奖池" width="130"><template #default="{row}">¥{{money(row.poolCents/100)}}</template></el-table-column>
           <el-table-column label="实发" width="130"><template #default="{row}">¥{{money(row.distributedCents/100)}}</template></el-table-column>
           <el-table-column prop="members" label="参与会员" width="100"/>
@@ -120,8 +122,9 @@ const pool=ref({}),poolOverview=ref({settlements:[]}),poolEditing=ref(false),poo
 const cycleNames={daily:'每天',weekly:'每周',monthly:'每月'},periodsPerMonth={daily:30,weekly:30/7,monthly:1}
 const beijingDay=ms=>new Date(ms+8*3600000).toISOString().slice(0,10)
 const fixedPool=r=>Math.round((r.baseAmount||0)*(r.percent||0))/100
-const poolText=computed(()=>{const r=pool.value,o=poolOverview.value;if(!r.revision)return '未启用。默认每天结算，固定奖池 10万 × 5% = 5,000 元，按办卡金额比例分给全部办卡会员；点击“配置”后启用。';const size=r.source==='fixed'?`奖池 ¥${money(fixedPool(r))}（¥${money(r.baseAmount)} × ${r.percent}%）`:`奖池为本期新增办卡金额 × ${r.percent}%`;return r.enabled?`已启用：${cycleNames[r.cycle]}结算，${size}；当前 ${o.members||0} 位办卡会员，办卡总额 ¥${money(o.totalWeight)}，下一次结算 ${o.nextSettlementAt?date(o.nextSettlementAt):'—'}（第 ${r.revision} 版）`:`已关闭：${cycleNames[r.cycle]}结算，${size}（第 ${r.revision} 版）`})
-const poolPreview=computed(()=>{const f=poolForm.value,o=poolOverview.value,total=o.totalWeight||0;const share=amount=>total?`按当前 ${o.members} 位会员（办卡总额 ¥${money(total)}），办卡 ¥6,980 的会员每期约得 ¥${money(amount*6980/total)}。`:'当前暂无办卡会员，有会员办卡后才会分配。';if(f.source==='fixed'){const each=fixedPool(f);return `每期奖池 ¥${money(each)}，${cycleNames[f.cycle]}结算，每月预计支出约 ¥${money(each*periodsPerMonth[f.cycle])}。${share(each)}`}return `每期奖池 = 本期新增办卡金额 × ${f.percent||0}%，例如本期新增办卡 ¥100,000 时奖池为 ¥${money(1000*(f.percent||0))}。${share(1000*(f.percent||0))}`})
+const poolSize=r=>r.source==='fixed'?`奖池 ¥${money(fixedPool(r))}（¥${money(r.baseAmount)} × ${r.percent}%）`:r.source==='sales'?`奖池为当期新增办卡金额 × ${r.percent}%`:`奖池为当期营业额 × ${r.percent}%`
+const poolText=computed(()=>{const r=pool.value,o=poolOverview.value;if(!r.revision)return '未启用。默认每天结算，奖池为当天营业额（全部已付款订单）× 5%，3天一轮：按办卡金额比例分给本轮已办卡的会员；点击“配置”后启用。';const live=r.enabled&&r.source!=='fixed'?`本期到目前${r.source==='sales'?'新增办卡':'营业额'} ¥${money(o.currentIncome)}，预计奖池 ¥${money(o.estimatedPool)}；`:'';const round=o.activity?`第 ${o.activity.round} 轮活动第 ${o.activity.day} 天（每轮 ${o.activity.days} 天）；`:'';return r.enabled?`已启用：${cycleNames[r.cycle]}结算，${poolSize(r)}；${round}${live}当前参与 ${o.members||0} 位办卡会员，办卡总额 ¥${money(o.totalWeight)}，下一次结算 ${o.nextSettlementAt?date(o.nextSettlementAt):'—'}（第 ${r.revision} 版）`:`已关闭：${cycleNames[r.cycle]}结算，${poolSize(r)}（第 ${r.revision} 版）`})
+const poolPreview=computed(()=>{const f=poolForm.value,o=poolOverview.value,total=o.totalWeight||0,pct=f.percent||0;const share=amount=>total?`按当前 ${o.members} 位会员（办卡总额 ¥${money(total)}），办卡 ¥6,980 的会员每期约得 ¥${money(amount*6980/total)}。`:'当前暂无办卡会员，有会员办卡后才会分配。';if(f.source==='fixed'){const each=fixedPool(f);return `每期奖池 ¥${money(each)}，${cycleNames[f.cycle]}结算，每月预计支出约 ¥${money(each*periodsPerMonth[f.cycle])}。${share(each)}`}const what=f.source==='sales'?'当期新增办卡金额':'当期营业额（全部已付款订单）';const rounds=f.cycle==='daily'&&f.activityDays>0?`每 ${f.activityDays} 天一轮，第1天分给当天办卡的会员，之后每天累加本轮已办卡的会员，第 ${f.activityDays+1} 天开始新一轮。`:'';return `每期奖池 = ${what} × ${pct}%，例如当期${f.source==='sales'?'新增办卡':'营业额'} ¥100,000 时奖池为 ¥${money(1000*pct)}，营业额为 0 时不分配。${rounds}${share(1000*pct)}`})
 function editPool(){poolForm.value=JSON.parse(JSON.stringify(pool.value));poolError.value='';poolEditing.value=true}
 async function savePool(){if(saving.value)return;saving.value=true;poolError.value='';try{await request({url:'/anqi/incomeRules/pool',method:'put',data:poolForm.value});poolEditing.value=false;ElMessage.success('分红池已保存');await load()}catch(e){poolError.value=e.message||'保存失败，已保留填写内容'}finally{saving.value=false}}
 onMounted(load)
