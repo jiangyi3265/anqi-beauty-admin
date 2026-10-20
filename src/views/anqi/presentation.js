@@ -24,8 +24,11 @@ export function formatBusiness(row,key,refs={}){
  if(key==='spec'&&row.product?.selectedSku?.name)return row.product.selectedSku.name
  if(key==='spec')return {single:row.product?.kind==='goods'?'一件':'单次服务',course:'一个疗程'}[v]||'—'
  if(key==='gender')return {male:'先生',female:'女士'}[v]||'未填写'
- if(key==='outcome')return {success:'成功',failure:'失败',cancel:'取消'}[v]||v
- if(key==='mode')return v==='mock'?'模拟支付（测试）':v
+ if(key==='outcome')return {success:'成功',failure:'失败',cancel:'取消',prepay:'发起微信支付',rejected:'已拒绝（未入账）',duplicate:'重复付款，需退还','refund-requested':'发起微信退款','refund-success':'退款已到账','refund-abnormal':'退款异常','refund-closed':'退款已关闭'}[v]||v
+ if(key==='source')return {notify:'微信支付回调',query:'主动查询微信',customer:'顾客发起',admin:'后台发起',refund:'微信退款结果'}[v]||v||'—'
+ if(key==='wechatRefund')return v?({PROCESSING:'微信退款处理中',SUCCESS:'已原路退回微信',ABNORMAL:'退款异常，请到微信支付商户平台处理',CLOSED:'退款已关闭，请到微信支付商户平台核实'}[v.status]||v.status)+'（退款单号 '+v.outRefundNo+'）':'—'
+ if(key==='duplicatePayment')return v?'顾客重复付款 ¥'+Number(v.amount).toFixed(2)+'（微信交易号 '+v.transactionId+'），请在微信支付商户平台退还':'—'
+ if(key==='mode')return v==='mock'?'模拟支付（测试）':v==='wechat'?'微信支付':v
  if(key==='paymentMode')return {mock:'模拟支付（测试，不扣款）',offline:'线下收款',weixin:'微信支付',wechat:'微信支付',demo:'历史记录'}[v]||'尚未收款'
  if(key==='createdAt'||key==='paidAt'||key==='completedAt'||key==='lastSign'||key==='lastSignAt')return chineseTime(v)
  if(key==='appointmentTime')return row.date?chineseTime(`${row.date}T${row.time||'00:00'}:00+08:00`):'—'
@@ -43,11 +46,11 @@ export function formatBusiness(row,key,refs={}){
  return typeof v==='object'?'—':String(v)
 }
 export const detailFields={
- paymentAudits:['orderId','userId','outcome','mode','amount','transactionId','createdAt'],
+ paymentAudits:['orderId','userId','outcome','mode','source','amount','transactionId','refundId','reason','createdAt'],
  products:['name','subtitle','kind','categoryId','referencePrice','price','coursePrice','stock','sold','enabled','home','gift','trial','description'],
  stores:['name','contact','phone','address','hours'],
  users:['name','phone','gender','invited','disabled','createdAt'],
- orders:['number','userId','product','quantity','spec','price','total','status','storeId','address','message','paymentMode','paymentTransactionId','paymentNote','tracking','refundStatus','refundNote','refundAt','createdAt','paidAt','completedAt'],
+ orders:['number','userId','product','quantity','spec','price','total','status','storeId','address','message','paymentMode','paymentTransactionId','paymentNote','tracking','refundStatus','refundNote','refundAt','wechatRefund','duplicatePayment','createdAt','paidAt','completedAt'],
  appointments:['name','userId','storeId','appointmentTime','status','orderId'],
  addresses:['userId','name','phone','city','detail','isDefault'],
  claims:['userId','type','productIds','status','createdAt','completedAt'],
