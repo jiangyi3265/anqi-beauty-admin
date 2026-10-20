@@ -1,4 +1,4 @@
-export const statusNames={draft:'草稿',published:'已上架',offline:'已下架',pending:'待付款',ready:'待使用',shipping:'待取货',completed:'已完成',cancelled:'已取消',booked:'已预约',aftersale:'售后处理中'}
+export const statusNames={draft:'草稿',published:'已上架',offline:'已下架',pending:'待付款',ready:'待使用',shipping:'待取货',completed:'已完成',cancelled:'已取消',booked:'已预约',aftersale:'已退款'}
 export function chineseTime(value,dateOnly=false){
  if(!value)return '—'
  if(/^\d{4}-\d{2}-\d{2}$/.test(value)){const [y,m,d]=value.split('-');return `${y}年${m}月${d}日`}
