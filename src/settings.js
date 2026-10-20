@@ -52,7 +52,7 @@ export default {
   /**
    * 底部版权文本内容
    */
-  footerContent: '暨美丽 · 运营管理平台'
+  footerContent: '秀荣科技美肤 · 运营管理平台'
 }
 
 

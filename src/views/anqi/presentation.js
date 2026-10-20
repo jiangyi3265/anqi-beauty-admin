@@ -21,6 +21,7 @@ export function formatBusiness(row,key,refs={}){
  if(key==='status')return statusNames[v]||'待发放'
  if(key==='kind')return {service:'服务项目',goods:'实物商品'}[v]||'—'
  if(key==='spec'&&row.package)return row.package.planName
+ if(key==='spec'&&row.product?.selectedSku?.name)return row.product.selectedSku.name
  if(key==='spec')return {single:row.product?.kind==='goods'?'一件':'单次服务',course:'一个疗程'}[v]||'—'
  if(key==='gender')return {male:'先生',female:'女士'}[v]||'未填写'
  if(key==='outcome')return {success:'成功',failure:'失败',cancel:'取消'}[v]||v
@@ -53,6 +54,10 @@ export const detailFields={
  categories:['name','sort','enabled'],
  activities:['name','description','productId','startAt','endAt','enabled'],alliances:['name','phone','description','enabled'],
  shares:['userId','name','createdAt'],earnings:['userId','name','amount','createdAt']
+ ,rewards:['name','points','stock','enabled','createdAt']
+ ,ledger:['userId','name','amount','createdAt']
+ ,redemptions:['userId','name','points','createdAt']
+ ,audit:['actor','resource','method','target','createdAt']
 }
 
 
