@@ -1,8 +1,8 @@
 <template>
  <section class="offline-members" v-loading="loading">
-  <header><div><h2>线下客户办理</h2><p>录入线下谈好的客户及套餐，客户关联微信后即可查看权益、预约和查询收益。</p></div><el-button :disabled="saving" @click="load">刷新资料</el-button></header>
+  <header><div><h2>会员权益办理</h2><p>直接选择已注册的客户，设置权益、收益资格并补录线下套餐，保存后同步到该账号。无需另建档案或再次关联微信。</p></div><el-button :disabled="saving" @click="load">刷新资料</el-button></header>
   <el-alert v-if="error" :title="error" type="error" :closable="false" show-icon/>
-  <div class="member-picker"><el-select v-model="selectedId" filterable clearable placeholder="搜索姓名、手机号或会员编号" :disabled="saving" @change="chooseMember"><el-option v-for="m in members" :key="m.id" :value="m.id" :label="memberLabel(m)"/></el-select><el-button type="primary" :disabled="saving" @click="newMember">新建线下客户</el-button></div>
+  <div class="member-picker"><el-select v-model="selectedId" filterable clearable placeholder="搜索姓名、手机号或会员编号" :disabled="saving" @change="chooseMember"><el-option v-for="m in members" :key="m.id" :value="m.id" :label="memberLabel(m)"/></el-select><el-button :disabled="saving" @click="newMember">尚未注册？先建线下档案</el-button></div>
   <section v-if="editor==='profile'" class="work-area">
    <h3>{{selected?'客户资料与资格':'新建线下客户'}}</h3>
    <p v-if="selected" class="help">会员编号：{{selected.id}} · {{selected.wechatBound?'已关联微信':'尚未关联微信'}}。请凭本人信息核实档案。</p>
@@ -17,7 +17,7 @@
    </el-form>
   </section>
   <section v-if="selected" class="work-area">
-   <div class="section-heading"><h3>{{selected.name}} · 办理业务</h3><el-tag :type="selected.wechatBound?'success':'info'">{{selected.wechatBound?'微信已关联':'线下档案'}}</el-tag></div>
+   <div class="section-heading"><h3>{{selected.name}} · 办理业务</h3><el-tag :type="selected.wechatBound?'success':'info'">{{selected.wechatBound?'已注册会员':'线下档案'}}</el-tag></div>
    <p>静态：{{data.pool?.enabled?`${{revenue:'营业额',sales:'办卡销售额',fixed:'固定基数'}[data.pool.source]||''}分红池 ${data.pool.percent}%，${data.pool.activityDays?data.pool.activityDays+'天一轮':'不分活动轮次'}`:'按后台已启用的套餐规则'}}；动态：{{data.referral?.enabled?`直接推荐首单 ${data.referral.firstPercent}%，后续 ${data.referral.laterPercent}%`:'按后台已启用的套餐规则'}}。</p>
    <div class="actions"><el-button :disabled="saving||selected.disabled" @click="startGrant">补录线下套餐</el-button><el-button v-if="selected.source==='offline'&&!selected.wechatBound" :disabled="saving" @click="startBind">关联微信会员</el-button></div>
   </section>
@@ -46,6 +46,7 @@
 import {computed,onMounted,ref} from 'vue'
 import request from '@/utils/request'
 const emit=defineEmits(['changed'])
+const props=defineProps({initialMemberId:{type:String,default:''}})
 const data=ref({members:[],products:[],stores:[]}),loading=ref(false),saving=ref(false),error=ref(''),message=ref(''),selectedId=ref(''),editor=ref(''),form=ref({}),grant=ref({}),binding=ref({}),choices=ref({}),options=ref({})
 const members=computed(()=>data.value.members),selected=computed(()=>members.value.find(m=>m.id===selectedId.value)),product=computed(()=>data.value.products.find(p=>p.id===grant.value.productId)),plan=computed(()=>product.value?.packagePlans.find(p=>p.id===grant.value.planId))
 const services=computed(()=>[...(plan.value?.services||[]).map(s=>({...s,id:'fixed:'+s.id})),...(plan.value?.groups||[]).flatMap(g=>g.services.filter(s=>choices.value[g.id]?.includes(s.id)).map(s=>({...s,id:g.id+':'+s.id})))])
@@ -62,7 +63,7 @@ function changePlan(){choices.value=Object.fromEntries((plan.value?.groups||[]).
 function saveGrant(){if(!grant.value.confirmed)return;const groups=Object.fromEntries((plan.value?.groups||[]).map(g=>[g.id,(choices.value[g.id]||[]).map(serviceId=>({serviceId,...(options.value[g.id+':'+serviceId]?{option:options.value[g.id+':'+serviceId]}:{})}))]));const used=Object.fromEntries(services.value.map(s=>[s.id,grant.value.used[s.id]||0]));return act('/anqi/legacyMembers/'+selectedId.value,'post',{...grant.value,paidAt:grant.value.paidAt?grant.value.paidAt+'+08:00':'',used,packageSelection:{planId:grant.value.planId,groups}},'线下套餐已录入，剩余服务已同步到会员账号。')}
 function startBind(){editor.value='bind';error.value='';message.value='';binding.value={action:'bind',revision:selected.value.memberRevision||0,targetId:'',targetCode:'',note:'',confirmed:false}}
 function saveBind(){if(binding.value.confirmed)return act('/anqi/legacyMembers/'+selectedId.value,'post',binding.value,'微信已关联，请客户重新登录小程序查看原有权益。')}
-onMounted(load)
+onMounted(async()=>{if(await load()){selectedId.value=props.initialMemberId;chooseMember()}})
 </script>
 <style scoped>
 .offline-members{padding:24px;color:var(--el-text-color-primary)}header,.section-heading{display:flex;align-items:center;justify-content:space-between;gap:20px}h2{margin:0 0 12px;font-size:24px}h3{font-size:19px;margin:0 0 18px}h4{font-size:15px;margin:16px 0}p{max-width:75ch;font-size:14px;line-height:1.7;color:var(--el-text-color-secondary)}.member-picker{display:flex;gap:12px;margin:26px 0}.member-picker .el-select{max-width:650px;flex:1}.work-area{border-top:1px solid var(--el-border-color);padding:26px 0;margin-top:20px}.fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}.fields .el-select,.fields .el-date-editor{width:100%}.switches{display:flex;flex-wrap:wrap;gap:36px}.help{margin:0 0 22px}.actions{display:flex;gap:12px;margin:22px 0 0}.choices{margin-bottom:24px}.choice{display:flex;gap:20px;align-items:center;margin:6px 0}.choice .el-select{width:220px}.after-table{margin-top:26px}.review{padding:20px;background:var(--el-fill-color-light);margin-top:20px}.success{color:var(--el-color-success);margin-top:20px}@media(max-width:900px){.fields{grid-template-columns:1fr}.member-picker,header{align-items:stretch;flex-direction:column}}
