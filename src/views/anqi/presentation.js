@@ -30,7 +30,8 @@ export function formatBusiness(row,key,refs={}){
  if(key==='duplicatePayment')return v?'顾客重复付款 ¥'+Number(v.amount).toFixed(2)+'（微信交易号 '+v.transactionId+'），请在微信支付商户平台退还':'—'
  if(key==='mode')return v==='mock'?'模拟支付（测试）':v==='wechat'?'微信支付':v
  if(key==='paymentMode')return {mock:'模拟支付（测试，不扣款）',offline:'线下收款',weixin:'微信支付',wechat:'微信支付',demo:'历史记录'}[v]||'尚未收款'
- if(key==='createdAt'||key==='paidAt'||key==='completedAt'||key==='lastSign'||key==='lastSignAt')return chineseTime(v)
+ if(key==='refundStatus')return {refunded:'已退款'}[v]||v||'—'
+ if(key==='createdAt'||key==='paidAt'||key==='completedAt'||key==='refundAt'||key==='lastSign'||key==='lastSignAt')return chineseTime(v)
  if(key==='appointmentTime')return row.date?chineseTime(`${row.date}T${row.time||'00:00'}:00+08:00`):'—'
  if(key==='address')return v?[v.name,v.phone,v.city,v.detail].filter(Boolean).join('，'):'到店服务，无需收货地址'
  if(key==='enabled')return v?'已上架':'已下架'
