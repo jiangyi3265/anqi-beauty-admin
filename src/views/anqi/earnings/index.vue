@@ -81,6 +81,7 @@
         <el-table :data="poolOverview.settlements||[]" v-loading="loading" stripe empty-text="暂无分红记录，启用分红池后每期结束自动生成">
           <el-table-column prop="label" label="结算周期" min-width="200"/>
           <el-table-column label="活动" width="130"><template #default="{row}">{{row.activityRound?`第${row.activityRound}轮第${row.activityDay}天`:'—'}}</template></el-table-column>
+          <el-table-column label="当日营业额" width="140"><template #default="{row}">{{row.revenueCents==null?'—':'¥'+money(row.revenueCents/100)}}</template></el-table-column>
           <el-table-column label="奖池" width="130"><template #default="{row}">¥{{money(row.poolCents/100)}}</template></el-table-column>
           <el-table-column label="实发" width="130"><template #default="{row}">¥{{money(row.distributedCents/100)}}</template></el-table-column>
           <el-table-column prop="members" label="参与会员" width="100"/>

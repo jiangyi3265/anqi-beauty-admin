@@ -3,7 +3,7 @@
   <header><div><h1>{{meta.title}}</h1><p>{{pageHint}}</p></div><el-button :loading="loading" @click="load">刷新</el-button></header>
   <el-alert v-if="error" :title="error" type="error" :closable="false" show-icon/>
   <template v-if="resource==='dashboard'">
-   <div class="stats"><el-card v-for="item in dashboardStats" :key="item.key" shadow="never"><span>{{item.label}}</span><strong>{{item.key==='revenue'?'¥':''}}{{item.key==='revenue'?Number(data[item.key]||0).toFixed(2):data[item.key]||0}}</strong></el-card></div>
+   <div class="stats"><el-card v-for="item in dashboardStats" :key="item.key" shadow="never"><span>{{item.label}}</span><strong>{{['revenue','todayRevenue'].includes(item.key)?'¥':''}}{{['revenue','todayRevenue'].includes(item.key)?Number(data[item.key]||0).toFixed(2):data[item.key]||0}}</strong></el-card></div>
    <el-card shadow="never"><h2>常用操作</h2><div class="quick-actions"><el-button type="primary" size="large" @click="goMenu('订单管理')">处理订单</el-button><el-button size="large" @click="goMenu('预约管理')">查看预约</el-button><el-button size="large" @click="goMenu('商品管理')">管理商品</el-button><el-button size="large" @click="goMenu('会员管理')">查看会员</el-button></div><p class="help">先上架商品，顾客就能在商城购买；订单、预约和礼品记录会自动显示在对应菜单。</p><el-alert title="微信支付尚未接入，用户下单后保持待付款；接入微信支付后再启用真实收款。" type="info" :closable="false"/></el-card>
   </template>
   <el-card v-else-if="resource==='config'" shadow="never">
@@ -64,7 +64,7 @@ const searchHint=computed(()=>resource.value==='products'?'搜索商品名称、
 const allowed=permission=>{const p=useUserStore().permissions;return p.includes('*:*:*')||p.includes(permission)}
 const canEdit=computed(()=>allowed('anqi:'+resource.value+':edit'))
 const endpoint=()=>'/anqi/'+resource.value
-const dashboardStats=[{key:'users',label:'会员人数'},{key:'orders',label:'订单数量'},{key:'revenue',label:'已收款金额'},{key:'appointments',label:'预约数量'}]
+const dashboardStats=[{key:'todayRevenue',label:'今日营业额'},{key:'todayPaidOrders',label:'今日收款笔数'},{key:'revenue',label:'累计已收款'},{key:'users',label:'会员人数'},{key:'orders',label:'订单数量'},{key:'appointments',label:'预约数量'}]
 const statusOptions=computed(()=>({products:['draft','published','offline'],orders:['pending','ready','shipping','completed','aftersale','cancelled'],appointments:['booked','completed','cancelled'],users:['normal','disabled','invited','notInvited'],claims:['awaiting','completed']}[resource.value]||[]).map(value=>({value,label:{normal:'正常使用',disabled:'已停用',invited:'可以领取礼品',notInvited:'不可领取礼品'}[value]||statusNames[value]||'待发放'})))
 const columns=computed(()=>meta.value.cols||[])
 const moduleTargetOptions=computed(()=>({product:refs.value.products||[],category:refs.value.categories||[],activity:refs.value.activities||[],store:refs.value.stores||[]}[moduleForm.value.targetType]||[]))

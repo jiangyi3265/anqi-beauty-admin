@@ -24,7 +24,7 @@ redemptions:{title:'兑换记录',desc:'查看会员兑换积分商品的记录'
 }
 export const configFields=[
  {key:'name',label:'店名',tab:'basic'}, {key:'brandTagline',label:'品牌副标题',tab:'basic'},
- {key:'maxGifts',label:'可领取礼品数量',type:'number',tab:'basic'}, {key:'signPoints',label:'每日签到积分',type:'number',tab:'basic'},
+ {key:'maxGifts',label:'贵宾卡可选项目数',type:'number',tab:'basic'}, {key:'trialPick',label:'体验卡可选项目数',type:'number',tab:'basic'}, {key:'trialUses',label:'体验卡每个项目可用次数',type:'number',tab:'basic'}, {key:'signPoints',label:'每日签到积分',type:'number',tab:'basic'},
  {key:'appointmentCapacity',label:'每个预约时段接待人数',type:'number',tab:'basic'}, {key:'appointmentTimes',label:'可预约时间（逗号分隔）',tab:'basic'},
  {key:'homeFeaturedLimit',label:'首页推荐展示数量（0表示全部）',type:'number',min:0,tab:'home'},
  ...[['homeTitle','首页主标题'],['homeSubtitle','首页副标题'],['shortcutTrialLabel','体验卡入口文字'],['shortcutVipLabel','贵宾卡入口文字'],['shortcutShareLabel','邀请码入口文字'],['shortcutAppointmentLabel','立即预约入口文字'],['bookingTitle','预约卡片标题'],['bookingSubtitle','预约卡片副标题'],['vipTitle','VIP卡片标题'],['vipSubtitle','VIP卡片副标题'],['storesTitle','门店卡片标题'],['storesSubtitle','门店卡片副标题'],['allianceTitle','联盟入口标题'],['allianceSubtitle','联盟入口副标题'],['featuredTitle','特色项目栏目名'],['goodsTitle','优选单品栏目名']].map(([key,label])=>({key,label,tab:'home'})),
