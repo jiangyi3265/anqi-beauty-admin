@@ -90,12 +90,49 @@
           <el-table-column label="结算时间" min-width="180"><template #default="{row}">{{date(row.createdAt)}}</template></el-table-column>
         </el-table>
       </el-tab-pane>
+      <el-tab-pane name="payouts" label="收益兑现">
+        <p class="help">门店线下把收益付给会员后，在这里登记。系统只记账、不会转账；登记后会员在小程序「我的收益」里能看到已兑现和待兑现金额。登记错了可以撤销，原记录会保留。</p>
+        <div class="payout-totals"><div><span>会员累计收益</span><strong>¥{{money(payoutData.totals.earned)}}</strong></div><div><span>已兑现</span><strong>¥{{money(payoutData.totals.paidOut)}}</strong></div><div><span>待兑现合计</span><strong>¥{{money(payoutData.totals.available)}}</strong></div></div>
+        <div class="filters"><el-input v-model="payoutKeyword" placeholder="搜索会员姓名或手机号" clearable/></div>
+        <el-table :data="payoutMembers" v-loading="loading" stripe empty-text="暂无有收益的会员">
+          <el-table-column label="会员" min-width="140"><template #default="{row}">{{row.name||'未填写姓名'}}<span v-if="row.disabled" class="muted">（已停用）</span></template></el-table-column>
+          <el-table-column prop="phone" label="手机号" width="130"/>
+          <el-table-column label="累计收益" width="130"><template #default="{row}">¥{{money(row.earned)}}</template></el-table-column>
+          <el-table-column label="已兑现" width="130"><template #default="{row}">¥{{money(row.paidOut)}}</template></el-table-column>
+          <el-table-column label="待兑现" width="130"><template #default="{row}"><span :class="{negative:row.available<0}">¥{{money(row.available)}}</span></template></el-table-column>
+          <el-table-column label="最近兑现" min-width="170"><template #default="{row}">{{row.lastPayoutAt?date(row.lastPayoutAt):'—'}}</template></el-table-column>
+          <el-table-column v-if="canEdit" label="操作" width="110"><template #default="{row}"><el-button link type="primary" :disabled="saving||row.available<=0" @click="openPayout(row)">登记兑现</el-button></template></el-table-column>
+        </el-table>
+        <p class="help">待兑现为负数时，说明会员兑现后又发生了退款冲回，需要和会员线下核对。</p>
+        <h3>兑现记录</h3>
+        <el-table :data="payoutData.payouts" v-loading="loading" stripe empty-text="暂无兑现记录">
+          <el-table-column label="登记时间" min-width="170"><template #default="{row}">{{date(row.createdAt)}}</template></el-table-column>
+          <el-table-column label="会员" min-width="120"><template #default="{row}">{{row.userName||userName(row.userId)}}</template></el-table-column>
+          <el-table-column label="金额" width="120"><template #default="{row}">¥{{money(row.amount)}}</template></el-table-column>
+          <el-table-column prop="methodName" label="方式" width="100"/>
+          <el-table-column prop="note" label="备注" min-width="160"/>
+          <el-table-column prop="actor" label="登记人" width="110"/>
+          <el-table-column label="状态" min-width="170"><template #default="{row}">{{row.status==='paid'?'已兑现':'已撤销：'+(row.cancelReason||'')}}</template></el-table-column>
+          <el-table-column v-if="canEdit" label="操作" width="90"><template #default="{row}"><el-button v-if="row.status==='paid'" link type="danger" :disabled="saving" @click="cancelPayout(row)">撤销</el-button></template></el-table-column>
+        </el-table>
+      </el-tab-pane>
     </el-tabs>
+    <el-dialog v-model="payoutDialog" title="登记收益兑现" width="520px" destroy-on-close>
+      <el-form label-position="top" :disabled="saving" @submit.prevent="submitPayout">
+        <p class="help">会员：{{payoutForm.name||'未填写姓名'}}{{payoutForm.phone?'（'+payoutForm.phone+'）':''}}，待兑现 ¥{{money(payoutForm.available)}}</p>
+        <el-form-item label="本次兑现金额（元）"><el-input-number v-model="payoutForm.amount" :min="0.01" :max="payoutForm.available" :precision="2"/></el-form-item>
+        <el-form-item label="兑现方式"><el-select v-model="payoutForm.method"><el-option v-for="(label,key) in payoutData.methods" :key="key" :value="key" :label="label"/></el-select></el-form-item>
+        <el-form-item label="备注（如转账单号，会员可以看到）"><el-input v-model="payoutForm.note" maxlength="200" show-word-limit/></el-form-item>
+        <el-checkbox v-model="payoutForm.confirmed">我已经线下把这笔钱付给会员</el-checkbox>
+        <el-alert v-if="payoutError" :title="payoutError" type="error" :closable="false" show-icon class="payout-error"/>
+      </el-form>
+      <template #footer><el-button :disabled="saving" @click="payoutDialog=false">取消</el-button><el-button type="primary" :loading="saving" :disabled="!payoutForm.confirmed||!(payoutForm.amount>0)" @click="submitPayout">确认登记</el-button></template>
+    </el-dialog>
   </main>
 </template>
 <script setup>
 import {ref,computed,onMounted,nextTick} from 'vue'
-import {ElMessage} from 'element-plus'
+import {ElMessage,ElMessageBox} from 'element-plus'
 import request from '@/utils/request'
 import useUserStore from '@/store/modules/user'
 import {chineseTime} from '../presentation'
@@ -112,7 +149,7 @@ function cents(p){return !p?.enabled?0:p.mode==='fixed'?Math.round(p.value*100):
 const previewStatic=computed(()=>cents(form.value.static)/100),previewDynamic=computed(()=>form.value.dynamic?.reduce((n,p)=>n+cents(p),0)/100||0)
 function filtered(rows){const q=keyword.value.trim().toLowerCase();return rows.filter(r=>(!kind.value||r.type===kind.value)&&(!q||[r.name,r.productName,r.orderId,userName(r.userId)].join(' ').toLowerCase().includes(q)))}
 let sequence=0
-async function load(){const seq=++sequence;loading.value=true;error.value='';try{const [a,b,c,u]=await Promise.all([request({url:'/anqi/incomeRules'}),request({url:'/anqi/incomePlans'}),request({url:'/anqi/earnings'}),allowed('anqi:users:list')?request({url:'/anqi/users'}):Promise.resolve({data:[]})]);if(seq===sequence){products.value=a.data.products;rules.value=a.data.rules;referral.value=a.data.referral||{};pool.value=a.data.pool||{};poolOverview.value=a.data.poolOverview||{settlements:[]};plans.value=b.data;records.value=c.data;users.value=u.data}}catch(e){if(seq===sequence)error.value=e.message||'加载失败，请刷新重试'}finally{if(seq===sequence)loading.value=false}}
+async function load(){const seq=++sequence;loading.value=true;error.value='';try{const [a,b,c,u,d]=await Promise.all([request({url:'/anqi/incomeRules'}),request({url:'/anqi/incomePlans'}),request({url:'/anqi/earnings'}),allowed('anqi:users:list')?request({url:'/anqi/users'}):Promise.resolve({data:[]}),request({url:'/anqi/earnings/payouts'})]);if(seq===sequence){products.value=a.data.products;rules.value=a.data.rules;referral.value=a.data.referral||{};pool.value=a.data.pool||{};poolOverview.value=a.data.poolOverview||{settlements:[]};plans.value=b.data;records.value=c.data;users.value=u.data;payoutData.value={...emptyPayouts(),...d.data}}}catch(e){if(seq===sequence)error.value=e.message||'加载失败，请刷新重试'}finally{if(seq===sequence)loading.value=false}}
 async function edit(product){editing.value=product;form.value=JSON.parse(JSON.stringify(ruleFor(product.id)||{revision:0,static:{...blankPart(),periods:1,intervalDays:1},dynamic:[],refundPolicy:'reverse'}));previewTotal.value=product.price;saveError.value='';await nextTick();editorElement.value?.scrollIntoView({block:'start',behavior:'smooth'})}
 async function save(){if(saving.value)return;saving.value=true;saveError.value='';try{await request({url:'/anqi/incomeRules/'+editing.value.id,method:'put',data:form.value});editing.value=null;ElMessage.success('规则已保存，将用于新订单');await load()}catch(e){saveError.value=e.message||'保存失败，已保留填写内容'}finally{saving.value=false}}
 const referral=ref({}),referralEditing=ref(false),referralForm=ref({}),referralError=ref(''),referralPreviewTotal=ref(6980)
@@ -129,9 +166,18 @@ const poolText=computed(()=>{const r=pool.value,o=poolOverview.value;if(!r.revis
 const poolPreview=computed(()=>{const f=poolForm.value,o=poolOverview.value,total=o.totalWeight||0,pct=f.percent||0;const share=amount=>total?`按当前 ${o.members} 位会员（办卡总额 ¥${money(total)}），办卡 ¥6,980 的会员每期约得 ¥${money(amount*6980/total)}。`:'当前暂无办卡会员，有会员办卡后才会分配。';if(f.source==='fixed'){const each=fixedPool(f);return `每期奖池 ¥${money(each)}，${cycleNames[f.cycle]}结算，每月预计支出约 ¥${money(each*periodsPerMonth[f.cycle])}。${share(each)}`}const what=f.source==='sales'?'当期新增办卡金额':'当期营业额（全部已付款订单）';const rounds=f.cycle==='daily'&&f.activityDays>0?`每 ${f.activityDays} 天一轮，第1天分给当天办卡的会员，之后每天累加本轮已办卡的会员，第 ${f.activityDays+1} 天开始新一轮。`:'';return `每期奖池 = ${what} × ${pct}%，例如当期${f.source==='sales'?'新增办卡':'营业额'} ¥100,000 时奖池为 ¥${money(1000*pct)}，营业额为 0 时不分配。${rounds}${share(1000*pct)}`})
 function editPool(){poolForm.value=JSON.parse(JSON.stringify(pool.value));poolError.value='';poolEditing.value=true}
 async function savePool(){if(saving.value)return;saving.value=true;poolError.value='';try{await request({url:'/anqi/incomeRules/pool',method:'put',data:poolForm.value});poolEditing.value=false;ElMessage.success('分红池已保存');await load()}catch(e){poolError.value=e.message||'保存失败，已保留填写内容'}finally{saving.value=false}}
+// 收益兑现：每次打开登记框生成一个登记编号，网络重试不会重复登记
+const emptyPayouts=()=>({members:[],payouts:[],totals:{earned:0,paidOut:0,available:0},methods:{}})
+const payoutData=ref(emptyPayouts()),payoutKeyword=ref(''),payoutDialog=ref(false),payoutForm=ref({}),payoutError=ref('')
+const payoutMembers=computed(()=>{const q=payoutKeyword.value.trim();return payoutData.value.members.filter(m=>!q||[m.name,m.phone].join(' ').includes(q))})
+const requestId=()=>globalThis.crypto?.randomUUID?.()||Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,12)
+function openPayout(row){payoutForm.value={userId:row.userId,name:row.name,phone:row.phone,available:row.available,amount:row.available,method:'wechat',note:'',confirmed:false,requestId:requestId()};payoutError.value='';payoutDialog.value=true}
+async function submitPayout(){if(saving.value)return;saving.value=true;payoutError.value='';const f=payoutForm.value;try{await request({url:'/anqi/earnings/payouts',method:'post',data:{action:'payout',userId:f.userId,amount:f.amount,method:f.method,note:f.note,confirmed:f.confirmed,requestId:f.requestId}});payoutDialog.value=false;ElMessage.success(`已登记兑现 ¥${money(f.amount)}，会员小程序里会同步显示`);await load()}catch(e){payoutError.value=e.message||'登记失败，请稍后重试；重试不会重复登记'}finally{saving.value=false}}
+async function cancelPayout(row){let reason;try{({value:reason}=await ElMessageBox.prompt(`撤销后，${row.userName||'该会员'}的待兑现会加回 ¥${money(row.amount)}。原记录会保留。`,'撤销兑现登记',{confirmButtonText:'确认撤销',cancelButtonText:'不撤销',inputPlaceholder:'请填写撤销原因',inputPattern:/\S/,inputErrorMessage:'请填写撤销原因'}))}catch{return}
+  if(saving.value)return;saving.value=true;try{await request({url:'/anqi/earnings/payouts',method:'post',data:{action:'cancel',id:row.id,reason}});ElMessage.success('已撤销这笔兑现登记');await load()}catch(e){ElMessage.error(e.message||'撤销失败，请稍后重试')}finally{saving.value=false}}
 onMounted(load)
 </script>
 <style scoped>
 .income-page{padding:24px;color:var(--el-text-color-primary)}header{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:24px}h1{font-size:24px;margin:0 0 10px}h2{font-size:21px;margin:0 0 12px}h3{font-size:18px;margin:28px 0 20px}h4{font-size:16px;margin:0}p{line-height:1.65;max-width:75ch;margin:0;color:var(--el-text-color-secondary)}.help{font-size:14px;margin:16px 0}.editor{border-top:1px solid var(--el-border-color);padding-top:28px;margin-top:28px}.dynamic-level{border-bottom:1px solid var(--el-border-color-lighter);padding-bottom:12px;margin-bottom:22px}.level-heading{display:flex;align-items:center;gap:24px;margin:20px 0}.refund-select{max-width:620px;width:100%}.preview{padding:1px 22px 12px;background:var(--el-fill-color-light);max-width:820px;margin:28px 0}.actions{display:flex;gap:12px;margin-top:24px}.filters{display:flex;gap:16px;margin:14px 0}.filters .el-input{max-width:360px}.filters .el-select{width:170px}@media(max-width:650px){.income-page{padding:16px}.filters{flex-wrap:wrap}header{align-items:flex-start}}
-.referral{border:1px solid var(--el-border-color-lighter);border-radius:8px;padding:4px 20px 12px;margin:8px 0 28px;max-width:900px}.referral-head{display:flex;justify-content:space-between;align-items:center;gap:20px}.referral h2{margin:16px 0 0}.referral-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px;max-width:820px}.referral-fields :deep(.el-select){width:100%}.package-title{margin-top:8px}@media(max-width:650px){.referral-fields{grid-template-columns:1fr}}
+.referral{border:1px solid var(--el-border-color-lighter);border-radius:8px;padding:4px 20px 12px;margin:8px 0 28px;max-width:900px}.referral-head{display:flex;justify-content:space-between;align-items:center;gap:20px}.referral h2{margin:16px 0 0}.referral-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px;max-width:820px}.referral-fields :deep(.el-select){width:100%}.package-title{margin-top:8px}.payout-totals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;max-width:820px;margin:8px 0 20px}.payout-totals div{border:1px solid var(--el-border-color-lighter);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:6px}.payout-totals span{font-size:13px;color:var(--el-text-color-secondary)}.payout-totals strong{font-size:22px}.negative{color:var(--el-color-danger)}.muted{color:var(--el-text-color-secondary)}.payout-error{margin-top:14px}@media(max-width:650px){.referral-fields{grid-template-columns:1fr}}
 </style>
