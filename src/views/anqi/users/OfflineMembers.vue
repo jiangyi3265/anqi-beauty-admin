@@ -8,7 +8,7 @@
    <p v-if="selected" class="help">会员编号：{{selected.id}} · {{selected.wechatBound?'已关联微信':'尚未关联微信'}}。请凭本人信息核实档案。</p>
    <el-form label-position="top" :disabled="saving" @submit.prevent="saveProfile">
     <div class="fields"><el-form-item label="客户姓名"><el-input v-model="form.name" maxlength="40"/></el-form-item><el-form-item label="手机号"><el-input v-model="form.phone" maxlength="11"/></el-form-item>
-     <el-form-item label="直接推荐人"><el-select v-model="form.inviterId" clearable filterable placeholder="没有推荐人可留空"><el-option v-for="m in members.filter(m=>m.id!==selectedId&&!m.disabled)" :key="m.id" :value="m.id" :label="memberLabel(m)"/></el-select></el-form-item>
+     <el-form-item label="直接推荐人（只能选超级VIP会员）"><el-select v-model="form.inviterId" clearable filterable placeholder="没有推荐人可留空"><el-option v-for="m in members.filter(m=>m.id!==selectedId&&!m.disabled&&(m.superVip||m.id===form.inviterId))" :key="m.id" :value="m.id" :label="memberLabel(m)"/></el-select></el-form-item>
     </div>
     <div class="switches"><el-form-item label="账号访问"><el-switch v-model="form.disabled" :active-value="false" :inactive-value="true" active-text="允许使用" inactive-text="停用"/></el-form-item><el-form-item label="贵宾卡十选三"><el-switch v-model="form.invited" active-text="有领取资格" inactive-text="未开通"/></el-form-item><el-form-item label="静态收益资格"><el-switch v-model="form.incomeAccess.static" active-text="参与" inactive-text="不参与"/></el-form-item><el-form-item label="动态收益资格"><el-switch v-model="form.incomeAccess.dynamic" active-text="可获推荐奖励" inactive-text="不参与"/></el-form-item></div>
     <p class="help">收益资格沿用「收益管理」的规则。静态资格用于后续分红结算及新订单；动态资格用于之后创建的推荐订单。已有发放计划、已入账金额不会因修改开关被重写。仅开通资格不会生成收益。</p>
