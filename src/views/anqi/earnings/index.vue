@@ -5,9 +5,9 @@
     <el-tabs v-model="tab">
       <el-tab-pane name="rules" label="收益规则">
         <section class="referral" aria-label="推荐奖励">
-          <div class="referral-head"><div><h2>推荐奖励 · {{referral.beneficiary==='top'?'推荐链第一位推荐人':'直接推荐人'}}</h2><p class="help">{{referralText}}</p></div><el-button v-if="canEdit&&!referralEditing" type="primary" plain :disabled="saving||!!editing" @click="editReferral">配置</el-button></div>
+          <div class="referral-head"><div><h2>推荐奖励 · 直接推荐人</h2><p class="help">{{referralText}}</p></div><el-button v-if="canEdit&&!referralEditing" type="primary" plain :disabled="saving||!!editing" @click="editReferral">配置</el-button></div>
           <el-form v-if="referralEditing" label-position="top" :disabled="saving" @submit.prevent="saveReferral">
-            <p class="help">推荐关系在被推荐人第一次注册时绑定。“奖励给谁”选直接推荐人时只奖励他的直接推荐人；选推荐链第一位推荐人时，沿推荐关系一路往上找到最上面的人，下面每一层的消费都奖励给他，中间的人不拿，他不符合条件时谁都不给。首单指被推荐人第一笔已付款且未退款的适用订单，按付款时间判断，启用前的历史订单也计入。启用后各套餐的多级动态收益不再发放，避免重复奖励。保存只影响之后创建的订单。</p>
+            <p class="help">只奖励被推荐人注册时绑定的直接推荐人。首单指被推荐人第一笔已付款且未退款的适用订单，按付款时间判断，启用前的历史订单也计入。启用后各套餐的多级动态收益不再发放，避免重复奖励。保存只影响之后创建的订单。</p>
             <el-form-item label="是否启用"><el-switch v-model="referralForm.enabled" active-text="启用" inactive-text="关闭"/></el-form-item>
             <div class="referral-fields">
               <el-form-item label="首单奖励比例（%）"><el-input-number v-model="referralForm.firstPercent" :min="0" :max="100" :precision="2"/></el-form-item>
@@ -16,7 +16,6 @@
               <el-form-item label="起算条件"><el-select v-model="referralForm.trigger"><el-option value="paid" label="确认收款后"/><el-option value="completed" label="订单完成后（套餐全部核销后）"/></el-select></el-form-item>
               <el-form-item label="入账等待天数（0为立即）"><el-input-number v-model="referralForm.delayDays" :min="0" :max="3650" :precision="0"/></el-form-item>
               <el-form-item label="推荐有效天数（从被推荐人注册起算，0为不限）"><el-input-number v-model="referralForm.durationDays" :min="0" :max="3650" :precision="0"/></el-form-item>
-              <el-form-item label="奖励给谁"><el-select v-model="referralForm.beneficiary"><el-option value="direct" label="直接推荐人（谁推荐的给谁）"/><el-option value="top" label="推荐链最上面的第一位推荐人（下面每一层的消费都算他的）"/></el-select></el-form-item>
               <el-form-item label="推荐人须办卡"><el-switch v-model="referralForm.requireCard" active-text="推荐人本人办了VIP卡才计奖励" inactive-text="不限"/></el-form-item>
             </div>
             <el-form-item label="整单退款时"><el-select v-model="referralForm.refundPolicy" class="refund-select"><el-option value="reverse" label="取消未入账计划，并冲回已入账奖励"/><el-option value="retain" label="取消未入账计划，保留已入账奖励"/></el-select></el-form-item>
@@ -154,7 +153,7 @@ async function load(){const seq=++sequence;loading.value=true;error.value='';try
 async function edit(product){editing.value=product;form.value=JSON.parse(JSON.stringify(ruleFor(product.id)||{revision:0,static:{...blankPart(),periods:1,intervalDays:1},dynamic:[],refundPolicy:'reverse'}));previewTotal.value=product.price;saveError.value='';await nextTick();editorElement.value?.scrollIntoView({block:'start',behavior:'smooth'})}
 async function save(){if(saving.value)return;saving.value=true;saveError.value='';try{await request({url:'/anqi/incomeRules/'+editing.value.id,method:'put',data:form.value});editing.value=null;ElMessage.success('规则已保存，将用于新订单');await load()}catch(e){saveError.value=e.message||'保存失败，已保留填写内容'}finally{saving.value=false}}
 const referral=ref({}),referralEditing=ref(false),referralForm=ref({}),referralError=ref(''),referralPreviewTotal=ref(6980)
-const referralText=computed(()=>{const r=referral.value;if(!r.revision)return '未启用。默认首单 50%、之后每单 10%，适用所有已付款订单，不限期；点击“配置”后启用。';const scope=r.scope==='vip'?'仅VIP套餐订单':'所有已付款订单',limit=r.durationDays?`注册后 ${r.durationDays} 天内`:'不限期';return `${r.enabled?'已启用':'已关闭'}：${r.beneficiary==='top'?'奖励给推荐链最上面的第一位推荐人（下面每一层的消费都算他的，中间的人不拿；他不符合条件时谁都不给）':'奖励给直接推荐人'}，首单 ${r.firstPercent}%，之后每单 ${r.laterPercent}%，${scope}，${limit}${r.requireCard?'，推荐人须已办VIP卡（办卡前的订单不补发）':''}（第 ${r.revision} 版）`})
+const referralText=computed(()=>{const r=referral.value;if(!r.revision)return '未启用。默认首单 50%、之后每单 10%，适用所有已付款订单，不限期；点击“配置”后启用。';const scope=r.scope==='vip'?'仅VIP套餐订单':'所有已付款订单',limit=r.durationDays?`注册后 ${r.durationDays} 天内`:'不限期';return `${r.enabled?'已启用':'已关闭'}：首单 ${r.firstPercent}%，之后每单 ${r.laterPercent}%，${scope}，${limit}${r.requireCard?'，推荐人须已办VIP卡（办卡前的订单不补发）':''}（第 ${r.revision} 版）`})
 function referralCents(percent){return Math.floor((Math.round((referralPreviewTotal.value||0)*100)*Math.round((percent||0)*100)+5000)/10000)}
 function editReferral(){referralForm.value=JSON.parse(JSON.stringify(referral.value));referralError.value='';referralEditing.value=true}
 async function saveReferral(){if(saving.value)return;saving.value=true;referralError.value='';try{await request({url:'/anqi/incomeRules/referral',method:'put',data:referralForm.value});referralEditing.value=false;ElMessage.success('推荐奖励已保存，将用于新订单');await load()}catch(e){referralError.value=e.message||'保存失败，已保留填写内容'}finally{saving.value=false}}
