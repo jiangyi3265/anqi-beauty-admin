@@ -1,5 +1,5 @@
 # Node / Vite
-node_modules/
+node_modules
 dist/
 *.suo
 *.ntvs*
