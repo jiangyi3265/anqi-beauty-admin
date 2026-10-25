@@ -51,7 +51,7 @@ export const detailFields={
  paymentAudits:['orderId','userId','outcome','mode','source','amount','transactionId','refundId','reason','createdAt'],
  products:['name','subtitle','kind','categoryId','referencePrice','price','coursePrice','stock','sold','enabled','home','gift','trial','description'],
  stores:['name','contact','phone','address','hours'],
- users:['name','phone','gender','invited','disabled','createdAt'],
+ users:['name','phone','gender','points','invited','disabled','createdAt'],
  orders:['number','userId','product','quantity','spec','price','total','status','storeId','address','message','paymentMode','paymentTransactionId','paymentNote','tracking','refundStatus','refundNote','refundAt','wechatRefund','duplicatePayment','referralNote','createdAt','paidAt','completedAt'],
  appointments:['name','userId','storeId','appointmentTime','status','orderId'],
  addresses:['userId','name','phone','city','detail','isDefault'],

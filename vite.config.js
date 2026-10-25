@@ -2,12 +2,12 @@ import { defineConfig, loadEnv } from 'vite'
 import path from 'path'
 import createVitePlugins from './vite/plugins'
 
-const baseUrl = 'http://localhost:8080' // 后端接口
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, __dirname)
   const { VITE_APP_ENV } = env
+  const baseUrl = env.VITE_DEV_API_TARGET || 'http://localhost:8080'
   return {
     root: __dirname,
     // 部署生产环境和开发环境下的URL。
@@ -47,6 +47,13 @@ export default defineConfig(({ mode, command }) => {
       host: '127.0.0.1',
       open: true,
       proxy: {
+        // 业务图片使用站点根路径，不带 /prod-api 前缀。
+        ...(env.VITE_DEV_ASSET_TARGET ? {
+          '^/static/(uploads|brand|reference)/': {
+            target: env.VITE_DEV_ASSET_TARGET,
+            changeOrigin: true
+          }
+        } : {}),
         // https://cn.vitejs.dev/config/#server-proxy
         '/dev-api': {
           target: baseUrl,
