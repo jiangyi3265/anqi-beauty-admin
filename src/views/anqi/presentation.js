@@ -1,4 +1,4 @@
-export const statusNames={draft:'草稿',published:'已上架',offline:'已下架',pending:'待付款',ready:'待使用',shipping:'待取货',completed:'已完成',cancelled:'已取消',booked:'已预约',aftersale:'已退款'}
+export const statusNames={draft:'草稿',published:'已上架',offline:'已下架',pending:'待付款',pendingPickup:'待领取',delivered:'已领取',ready:'待使用',shipping:'待取货',completed:'已完成',cancelled:'已取消',booked:'已预约',aftersale:'已退款'}
 export function chineseTime(value,dateOnly=false){
  if(!value)return '—'
  if(/^\d{4}-\d{2}-\d{2}$/.test(value)){const [y,m,d]=value.split('-');return `${y}年${m}月${d}日`}
@@ -52,7 +52,7 @@ export const detailFields={
  products:['name','subtitle','kind','categoryId','referencePrice','price','coursePrice','stock','sold','enabled','home','gift','trial','description'],
  stores:['name','contact','phone','address','hours'],
  users:['name','phone','gender','points','invited','disabled','createdAt'],
- orders:['number','userId','product','quantity','spec','price','total','status','storeId','address','message','paymentMode','paymentTransactionId','paymentNote','tracking','refundStatus','refundNote','refundAt','wechatRefund','duplicatePayment','referralNote','createdAt','paidAt','completedAt'],
+ orders:['number','userId','referrerIdAtOrder','inviterId','product','quantity','spec','price','total','status','storeId','address','message','paymentMode','paymentTransactionId','paymentNote','tracking','refundStatus','refundNote','refundAmount','refundMethod','refundReference','refundAt','refundRecordedAt','wechatRefund','duplicatePayment','referralNote','createdAt','paidAt','completedAt'],
  appointments:['name','userId','storeId','appointmentTime','status','orderId'],
  addresses:['userId','name','phone','city','detail','isDefault'],
  claims:['userId','type','productIds','status','createdAt','completedAt'],
@@ -61,7 +61,7 @@ export const detailFields={
  shares:['userId','name','createdAt'],earnings:['userId','name','amount','createdAt']
  ,rewards:['name','points','stock','enabled','createdAt']
  ,ledger:['userId','name','amount','createdAt']
- ,redemptions:['userId','name','points','createdAt']
+ ,redemptions:['userId','name','points','status','deliveryNote','createdAt','deliveredAt']
  ,audit:['actor','resource','method','target','createdAt']
 }
 

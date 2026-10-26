@@ -19,6 +19,11 @@ export function memberOverview(members, orders, rules, now = Date.now()) {
     const reason = !pool.enabled ? '分红池未启用' : !active ? '分红尚未开始' : member.disabled ? '账号已停用' : member.incomeAccess?.static === false ? '未开通静态收益资格' : !cents ? '暂无符合本期条件的办卡金额' : '参与分红'
     result.set(member.id, { level: name ? (name.endsWith('会员') ? name : name + '会员') : '普通会员', packages, amount: cents / 100, share: active && cents > 0 && totalCents > 0 ? cents / totalCents * 100 : 0, reason })
   }
+  if(rules.shareholders?.rule?.activatedAt){
+    const source=rules.shareholders,total=source.totalUnits;
+    for(const member of members){const row=result.get(member.id),holding=source.members.find(m=>m.userId===member.id);row.units=holding?.units||0;row.share=total?row.units/total*100:0;row.reason=holding?holding.planName+' · 参与分配':member.shareholder?.approved?'暂无有效分配资格':'未认证股东';}
+    return {members:result,total,count:source.members.length,pool,shareholderMode:true,shareholderEnabled:source.rule.enabled};
+  }
   const shownTotal=[...result.values()].reduce((sum,row)=>sum+Math.round(row.amount*100),0)
   if(shownTotal!==totalCents)throw new Error('会员与分红数据正在更新，请点击刷新重新核对，暂不显示占比')
   return { members: result, total: totalCents / 100, count: overview.members, pool }

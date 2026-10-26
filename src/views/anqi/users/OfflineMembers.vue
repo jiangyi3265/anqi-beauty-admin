@@ -8,7 +8,7 @@
    <p v-if="selected" class="help">会员编号：{{selected.id}} · {{selected.wechatBound?'已关联微信':'尚未关联微信'}}。请凭本人信息核实档案。</p>
    <el-form label-position="top" :disabled="saving" @submit.prevent="saveProfile">
     <div class="fields"><el-form-item label="客户姓名"><el-input v-model="form.name" maxlength="40"/></el-form-item><el-form-item label="手机号"><el-input v-model="form.phone" maxlength="11"/></el-form-item>
-     <el-form-item label="直接推荐人（只能选超级VIP会员）"><el-select v-model="form.inviterId" clearable filterable placeholder="没有推荐人可留空"><el-option v-for="m in members.filter(m=>m.id!==selectedId&&!m.disabled&&(m.superVip||m.id===form.inviterId))" :key="m.id" :value="m.id" :label="memberLabel(m)"/></el-select></el-form-item>
+     <el-form-item :label="data.shareholderProgram?.activatedAt?'直接推荐人（认证股东）':'直接推荐人（只能选超级VIP会员）'"><el-select v-model="form.inviterId" clearable filterable placeholder="没有推荐人可留空"><el-option v-for="m in members.filter(m=>m.id!==selectedId&&!m.disabled&&((m.canShare??m.superVip)||m.id===form.inviterId))" :key="m.id" :value="m.id" :label="memberLabel(m)"/></el-select></el-form-item>
     </div>
     <div class="switches"><el-form-item label="账号访问"><el-switch v-model="form.disabled" :active-value="false" :inactive-value="true" active-text="允许使用" inactive-text="停用"/></el-form-item><el-form-item label="贵宾卡十选三"><el-switch v-model="form.invited" active-text="有领取资格" inactive-text="未开通"/></el-form-item><el-form-item label="静态收益资格"><el-switch v-model="form.incomeAccess.static" active-text="参与" inactive-text="不参与"/></el-form-item><el-form-item label="动态收益资格"><el-switch v-model="form.incomeAccess.dynamic" active-text="可获推荐奖励" inactive-text="不参与"/></el-form-item></div>
     <p class="help">收益资格沿用「收益管理」的规则。静态资格用于后续分红结算及新订单；动态资格用于之后创建的推荐订单。已有发放计划、已入账金额不会因修改开关被重写。仅开通资格不会生成收益。</p>
@@ -18,7 +18,7 @@
   </section>
   <section v-if="selected" class="work-area">
    <div class="section-heading"><h3>{{selected.name}} · 办理业务</h3><el-tag :type="selected.wechatBound?'success':'info'">{{selected.wechatBound?'已注册会员':'线下档案'}}</el-tag></div>
-   <p>静态：{{data.pool?.enabled?`${{revenue:'营业额',sales:'办卡销售额',fixed:'固定基数'}[data.pool.source]||''}分红池 ${data.pool.percent}%，${data.pool.activityDays?data.pool.activityDays+'天一轮':'不分活动轮次'}`:'按后台已启用的套餐规则'}}；动态：{{data.referral?.enabled?`直接推荐首单 ${data.referral.firstPercent}%，后续 ${data.referral.laterPercent}%`:'按后台已启用的套餐规则'}}。</p>
+   <p>静态：{{data.shareholderProgram?.activatedAt?'按认证股东方案份数每日分配':data.pool?.enabled?`${{revenue:'营业额',sales:'办卡销售额',fixed:'固定基数'}[data.pool.source]||''}分红池 ${data.pool.percent}%，${data.pool.activityDays?data.pool.activityDays+'天一轮':'不分活动轮次'}`:'按后台已启用的套餐规则'}}；动态：{{data.referral?.enabled?`直接推荐首单 ${data.referral.firstPercent}%，后续 ${data.referral.laterPercent}%`:'按后台已启用的套餐规则'}}。</p>
    <div class="actions"><el-button :disabled="saving||selected.disabled" @click="startGrant">补录线下套餐</el-button><el-button v-if="selected.source==='offline'&&!selected.wechatBound" :disabled="saving" @click="startBind">关联微信会员</el-button></div>
   </section>
   <section v-if="editor==='grant'&&selected" class="work-area">
@@ -29,7 +29,7 @@
     <el-table :data="services" empty-text="先选择套餐方案"><el-table-column prop="name" label="服务项目" min-width="180"/><el-table-column prop="total" label="原有次数或件数" width="100"/><el-table-column label="已用次数或已领件数" width="190"><template #default="{row}"><el-input-number v-model="grant.used[row.id]" :min="0" :max="row.total" :precision="0"/></template></el-table-column><el-table-column label="剩余数量" width="100"><template #default="{row}">{{row.total-(grant.used[row.id]||0)}}</template></el-table-column></el-table>
     <div class="fields after-table"><el-form-item label="实际已付金额（元）"><el-input-number v-model="grant.total" :step="0.01" :min="0.01" :max="10000000" :precision="2"/></el-form-item><el-form-item label="实际收款时间（北京时间）"><el-date-picker v-model="grant.paidAt" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" placeholder="按北京时间填写"/></el-form-item><el-form-item label="线下单据编号（防止重复录入）"><el-input v-model="grant.reference" maxlength="80"/></el-form-item></div>
     <el-form-item label="收益处理"><el-radio-group v-model="grant.incomeTreatment"><el-radio label="historical">历史补录，不重复发奖励</el-radio><el-radio label="apply">今日新收款，按现行规则发放</el-radio></el-radio-group></el-form-item>
-    <p v-if="grant.incomeTreatment==='apply'" class="help">保存会按现行规则生成收益计划并入账。仅适用于今天的新收款、未使用套餐，请确认这笔奖励尚未在线下结算。</p>
+    <p v-if="grant.incomeTreatment==='apply'" class="help">保存会扣减 1 套套餐库存，并按现行规则生成收益计划。仅适用于今天的新收款、未使用套餐，请确认这笔奖励尚未在线下结算。</p>
     <el-form-item label="收款凭证及线下约定说明"><el-input v-model="grant.note" type="textarea" :rows="3" maxlength="500"/></el-form-item>
     <div class="review"><strong>本次录入：{{selected.name}} · {{product?.name||'未选套餐'}} · ¥{{grant.total||0}}</strong><p>剩余权益 {{services.reduce((n,s)=>n+s.total-(grant.used[s.id]||0),0)}} 份（服务预约，实物到店领取）。{{grant.incomeTreatment==='historical'?'不补发历史奖励。':'按当前规则计入收益。'}}</p><el-checkbox v-model="grant.confirmed">已核实本人、线下收款和剩余次数</el-checkbox></div>
     <div class="actions"><el-button type="primary" native-type="submit" :loading="saving" :disabled="!grant.confirmed">确认补录</el-button><el-button @click="chooseMember">返回资料</el-button></div>
