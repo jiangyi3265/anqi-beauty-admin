@@ -8,10 +8,10 @@
    <p v-if="selected" class="help">会员编号：{{selected.id}} · {{selected.wechatBound?'已关联微信':'尚未关联微信'}}。请凭本人信息核实档案。</p>
    <el-form label-position="top" :disabled="saving" @submit.prevent="saveProfile">
     <div class="fields"><el-form-item label="客户姓名"><el-input v-model="form.name" maxlength="40"/></el-form-item><el-form-item label="手机号"><el-input v-model="form.phone" maxlength="11"/></el-form-item>
-     <el-form-item :label="data.shareholderProgram?.activatedAt?'直接推荐人（认证股东）':'直接推荐人（只能选超级VIP会员）'"><el-select v-model="form.inviterId" clearable filterable placeholder="没有推荐人可留空"><el-option v-for="m in members.filter(m=>m.id!==selectedId&&!m.disabled&&((m.canShare??m.superVip)||m.id===form.inviterId))" :key="m.id" :value="m.id" :label="memberLabel(m)"/></el-select></el-form-item>
+     <el-form-item label="直接推荐人（认证股东）"><el-select v-model="form.inviterId" clearable filterable placeholder="没有推荐人可留空"><el-option v-for="m in members.filter(m=>m.id!==selectedId&&!m.disabled&&(m.canShare||m.id===form.inviterId))" :key="m.id" :value="m.id" :label="memberLabel(m)"/></el-select></el-form-item>
     </div>
     <div class="switches"><el-form-item label="账号访问"><el-switch v-model="form.disabled" :active-value="false" :inactive-value="true" active-text="允许使用" inactive-text="停用"/></el-form-item><el-form-item label="贵宾卡十选三"><el-switch v-model="form.invited" active-text="有领取资格" inactive-text="未开通"/></el-form-item><el-form-item label="静态收益资格"><el-switch v-model="form.incomeAccess.static" active-text="参与" inactive-text="不参与"/></el-form-item><el-form-item label="动态收益资格"><el-switch v-model="form.incomeAccess.dynamic" active-text="可获推荐奖励" inactive-text="不参与"/></el-form-item></div>
-    <p class="help">收益资格沿用「收益管理」的规则。静态资格用于后续分红结算及新订单；动态资格用于之后创建的推荐订单。已有发放计划、已入账金额不会因修改开关被重写。仅开通资格不会生成收益。</p>
+    <p class="help">收益开关仅控制后续参与资格；客户还须购买方案并由门店完成股东认证，才有分红和分享码。已有发放计划与已入账金额不会因修改开关被重写。</p>
     <el-form-item label="线下约定或本次修改说明"><el-input v-model="form.note" type="textarea" :rows="3" maxlength="500" show-word-limit/></el-form-item>
     <el-button type="primary" native-type="submit" :loading="saving">{{selected?'保存资料与资格':'建立客户档案'}}</el-button>
    </el-form>
@@ -36,7 +36,7 @@
    </el-form>
   </section>
   <section v-if="editor==='bind'&&selected" class="work-area">
-   <h3>关联客户本人的微信账号</h3><p class="help">让客户先在小程序微信登录一次，打开首页「邀请码」，核对页面上客户本人的8位会员编号（超级VIP会员显示为“我的邀请码”）后选择对应账号。关联后请客户重新登录，线下权益和收益将显示在原档案下。已产生订单或推荐关系的微信账号请直接补录，不进行合并。</p>
+   <h3>关联客户本人的微信账号</h3><p class="help">让客户先在小程序微信登录一次，核对个人页面上的8位会员编号（认证股东可在邀请页面查看邀请码）后选择对应账号。关联后请客户重新登录，线下权益和收益将显示在原档案下。已产生订单或推荐关系的微信账号请直接补录，不进行合并。</p>
    <el-form label-position="top" :disabled="saving" @submit.prevent="saveBind"><el-form-item label="客户刚登录的微信会员"><el-select v-model="binding.targetId" filterable><el-option v-for="m in members.filter(m=>m.wechatBound&&!m.disabled&&m.source!=='offline')" :key="m.id" :value="m.id" :label="memberLabel(m)"/></el-select></el-form-item><el-form-item label="客户提供的8位会员编号"><el-input v-model="binding.targetCode" maxlength="8" placeholder="客户小程序首页 → 邀请码 → 会员编号"/></el-form-item><el-form-item label="身份核实说明"><el-input v-model="binding.note" type="textarea" :rows="2" maxlength="500"/></el-form-item><el-checkbox v-model="binding.confirmed">已向客户本人核对邀请码、姓名和手机号</el-checkbox><div class="actions"><el-button type="primary" native-type="submit" :loading="saving" :disabled="!binding.confirmed">确认关联微信</el-button><el-button @click="chooseMember">返回资料</el-button></div></el-form>
   </section>
   <p v-if="message" role="status" class="success">{{message}}</p>

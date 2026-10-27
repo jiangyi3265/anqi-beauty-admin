@@ -17,7 +17,7 @@
     <slot name="member-columns"/>
     <el-table-column v-for="col in ($slots['member-columns']?[]:columns)" :key="col.key" :label="col.label" :min-width="columnWidth(col)" show-overflow-tooltip><template #default="{row}"><el-image v-if="col.type==='image'&&row[col.key]" :src="row[col.key]" :preview-src-list="[row[col.key]]" preview-teleported fit="cover" class="table-picture"/><el-tag v-else-if="['status','enabled','disabled','invited'].includes(col.key)" :type="tagType(row,col.key)">{{display(row,col.key)}}</el-tag><span v-else>{{display(row,col.key)}}</span></template></el-table-column>
     <el-table-column label="操作" :fixed="fixedActions?'right':false" :width="resource==='orders'?270:resource==='users'?180:resource==='products'?245:205"><template #default="{row}"><div class="row-actions"><el-button link type="primary" @click="showDetail(row)">查看详情</el-button><template v-if="canEdit"><el-button v-if="meta.editable" link type="primary" @click="edit(row)">修改</el-button><el-button v-if="meta.editable" link @click="copyRow(row)">复制</el-button><el-button v-if="meta.editable" link @click="update(row,{enabled:!row.enabled})">{{row.enabled?'下架':'上架'}}</el-button><el-button v-if="resource==='products'&&meta.editable" link type="warning" @click="openInventory(row)">库存调整</el-button><el-button v-if="meta.editable&&['stores','categories','products','activities','alliances'].includes(resource)" link type="danger" @click="remove(row)">删除</el-button>
-     <template v-if="resource==='orders'"><el-button v-if="row.status==='pending'" link type="warning" @click="orderAction(row,'confirmPayment')">确认已收款</el-button><el-button v-if="row.status==='pending'" link type="danger" @click="orderAction(row,'cancel')">取消订单</el-button><el-button v-if="row.status==='shipping'" link type="primary" @click="orderAction(row,'ship')">填写发货信息</el-button><el-button v-if="!row.package&&['ready','shipping'].includes(row.status)" link type="success" @click="setStatus(row,'completed')">{{row.status==='shipping'?'确认已交付':'确认服务完成'}}</el-button><el-button v-if="['ready','shipping','completed'].includes(row.status)&&row.refundStatus!=='refunded'" link type="danger" @click="orderAction(row,'refund')">售后退款</el-button></template>
+     <template v-if="resource==='orders'"><el-button v-if="row.status==='pending'" link type="warning" :loading="saving" @click="orderAction(row,'confirmPayment')">通过并确认付款</el-button><el-button v-if="row.status==='pending'" link type="danger" @click="orderAction(row,'cancel')">取消订单</el-button><el-button v-if="row.status==='shipping'" link type="primary" @click="orderAction(row,'ship')">填写发货信息</el-button><el-button v-if="!row.package&&['ready','shipping'].includes(row.status)" link type="success" @click="setStatus(row,'completed')">{{row.status==='shipping'?'确认已交付':'确认服务完成'}}</el-button><el-button v-if="['ready','shipping','completed'].includes(row.status)&&row.refundStatus!=='refunded'" link type="danger" @click="orderAction(row,'refund')">售后退款</el-button></template>
      <template v-if="resource==='appointments'&&row.status==='booked'"><el-button link type="success" @click="setStatus(row,'completed')">完成服务</el-button><el-button link type="danger" @click="setStatus(row,'cancelled')">取消预约</el-button></template>
      <template v-if="resource==='users'"><slot name="member-actions" :member="row"/><el-button link type="primary" @click="memberPoints(row)">调整积分</el-button><el-dropdown trigger="click" @command="cmd=>memberMore(row,cmd)"><el-button link>更多操作</el-button><template #dropdown><el-dropdown-menu><el-dropdown-item command="gift">{{row.invited?'取消领礼资格':'允许领取礼品'}}</el-dropdown-item><el-dropdown-item command="points">调整积分</el-dropdown-item><el-dropdown-item command="disabled">{{row.disabled?'恢复账号':'停用账号'}}</el-dropdown-item><el-dropdown-item command="password">重置会员密码</el-dropdown-item></el-dropdown-menu></template></el-dropdown></template>
      <el-button v-if="resource==='claims'&&row.status!=='completed'" link type="primary" @click="showDetail(row)">查看进度</el-button>
@@ -171,7 +171,29 @@ async function deliverRedemption(row){
  saving.value=true;
  try{await request({url:'/anqi/redemptions/'+row.id,method:'put',data:{status:'delivered',confirmed:true,note}});ElMessage.success('已确认领取');await load()}catch(e){ElMessage.error(e?.response?.data?.msg||e?.message||'确认失败')}finally{saving.value=false}
 }
-async function orderAction(row,action){if(action==='refund'&&row.paymentMode!=='wechat')return openOfflineRefund(row);const body={action};if(action==='confirmPayment'){const note=await prompt('请核实实际收到 ¥'+Number(row.total).toFixed(2)+'，填写收款方式或凭证说明。','确认已收到顾客付款');if(note===null)return;body.note=note}else if(action==='ship'){const tracking=await prompt('填写快递单号，或填写到店领取的说明。','填写发货信息');if(tracking===null)return;body.tracking=tracking}else if(action==='refund'){const note=await prompt('将通过微信支付原路退回 ¥'+Number(row.total).toFixed(2)+' 给顾客，填写退款原因。','确认售后退款');if(note===null)return;body.note=note}else if(!await confirm('取消这笔未付款订单后，商品数量会自动恢复。'))return;try{await request({url:endpoint()+'/'+row.id,method:'post',data:body});ElMessage.success(action==='refund'?'已提交微信退款':'订单已更新');await load()}catch(e){ElMessage.error(e?.response?.data?.msg||e?.message||'订单操作失败')}}
+async function orderAction(row,action){
+  if(action==='confirmPayment'&&saving.value)return
+  if(action==='refund'&&row.paymentMode!=='wechat')return openOfflineRefund(row)
+  const body={action}
+  if(action==='confirmPayment'){
+    body.confirmed=true
+  }else if(action==='ship'){
+    const tracking=await prompt('填写快递单号，或填写到店领取的说明。','填写发货信息')
+    if(tracking===null)return
+    body.tracking=tracking
+  }else if(action==='refund'){
+    const note=await prompt('将通过微信支付原路退回 ¥'+Number(row.total).toFixed(2)+' 给顾客，填写退款原因。','确认售后退款')
+    if(note===null)return
+    body.note=note
+  }else if(!await confirm('取消这笔未付款订单后，商品数量会自动恢复。'))return
+  if(action==='confirmPayment')saving.value=true
+  try{
+    await request({url:endpoint()+'/'+row.id,method:'post',data:body})
+    ElMessage.success(action==='refund'?'已提交微信退款':action==='confirmPayment'?'已确认付款':'订单已更新')
+    await load()
+  }catch(e){ElMessage.error(e?.response?.data?.msg||e?.message||'订单操作失败')}
+  finally{if(action==='confirmPayment')saving.value=false}
+}
 async function memberMore(row,cmd){if(cmd==='password')return memberAction(row,'resetPassword');if(cmd==='points')return memberPoints(row);if(cmd==='gift'){if(await confirm(row.invited?'取消后，该会员不能领取新客礼品。':'允许该会员领取一次新客礼品？'))await update(row,{invited:!row.invited})}else if(await confirm(row.disabled?'恢复后，该会员可以正常登录。':'停用后，该会员无法登录，已有记录会保留。'))await update(row,{disabled:!row.disabled})}
 async function memberAction(row,action){const password=await prompt('请输入8至72位的新密码。','重置会员登录密码',true);if(password===null)return;try{await request({url:endpoint()+'/'+row.id,method:'post',data:{action:'resetPassword',password}});ElMessage.success('已更新会员信息');await load()}catch{}}
 async function memberPoints(row){const value=await prompt('输入本次积分变动，增加请输入正数，扣减请输入负数。','调整 '+(row.name||'会员')+' 的积分');if(value===null)return;const amount=Number(value);if(!Number.isInteger(amount)||amount===0)return ElMessage.warning('请输入非零整数积分');const note=await prompt('填写积分变动原因。','积分变动原因');if(note===null)return;try{await request({url:endpoint()+'/'+row.id,method:'post',data:{action:'points',amount,note}});ElMessage.success('积分已更新');await load()}catch(e){ElMessage.error(e?.response?.data?.msg||e?.message||'积分更新失败')}}

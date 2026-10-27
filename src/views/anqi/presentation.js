@@ -29,9 +29,13 @@ export function formatBusiness(row,key,refs={}){
  if(key==='wechatRefund')return v?({PROCESSING:'微信退款处理中',SUCCESS:'已原路退回微信',ABNORMAL:'退款异常，请到微信支付商户平台处理',CLOSED:'退款已关闭，请到微信支付商户平台核实'}[v.status]||v.status)+'（退款单号 '+v.outRefundNo+'）':'—'
  if(key==='duplicatePayment')return v?'顾客重复付款 ¥'+Number(v.amount).toFixed(2)+'（微信交易号 '+v.transactionId+'），请在微信支付商户平台退还':'—'
  if(key==='mode')return v==='mock'?'模拟支付（测试）':v==='wechat'?'微信支付':v
+ if(key==='paymentChoice'){
+  const mode=row.paymentMode||v
+  return {wechat:'微信支付',offline:'现金支付（门店收银）',mock:'模拟支付（测试）',demo:'历史记录'}[mode]||(row.status==='pending'?'待选择':'—')
+ }
  if(key==='paymentMode')return {mock:'模拟支付（测试，不扣款）',offline:'线下收款',weixin:'微信支付',wechat:'微信支付',demo:'历史记录'}[v]||'尚未收款'
  if(key==='refundStatus')return {refunded:'已退款'}[v]||v||'—'
- if(key==='referralNote')return {inviterNoCard:'好友付款时推荐人还没办VIP卡，本单不计推荐奖励'}[v]||v||'—'
+ if(key==='referralNote')return {inviterNoCard:'好友付款时推荐人还没办VIP卡，本单不计推荐奖励',notShareholder:'好友付款时推荐人不具备股东分享资格，本单不计推荐奖励'}[v]||v||'—'
  if(key==='createdAt'||key==='paidAt'||key==='completedAt'||key==='refundAt'||key==='lastSign'||key==='lastSignAt')return chineseTime(v)
  if(key==='appointmentTime')return row.date?chineseTime(`${row.date}T${row.time||'00:00'}:00+08:00`):'—'
  if(key==='address')return v?[v.name,v.phone,v.city,v.detail].filter(Boolean).join('，'):'到店服务，无需收货地址'
@@ -52,7 +56,7 @@ export const detailFields={
  products:['name','subtitle','kind','categoryId','referencePrice','price','coursePrice','stock','sold','enabled','home','gift','trial','description'],
  stores:['name','contact','phone','address','hours'],
  users:['name','phone','gender','points','invited','disabled','createdAt'],
- orders:['number','userId','referrerIdAtOrder','inviterId','product','quantity','spec','price','total','status','storeId','address','message','paymentMode','paymentTransactionId','paymentNote','tracking','refundStatus','refundNote','refundAmount','refundMethod','refundReference','refundAt','refundRecordedAt','wechatRefund','duplicatePayment','referralNote','createdAt','paidAt','completedAt'],
+ orders:['number','userId','referrerIdAtOrder','inviterId','product','quantity','spec','price','total','paymentChoice','status','storeId','address','message','paymentMode','paymentTransactionId','paymentNote','tracking','refundStatus','refundNote','refundAmount','refundMethod','refundReference','refundAt','refundRecordedAt','wechatRefund','duplicatePayment','referralNote','createdAt','paidAt','completedAt'],
  appointments:['name','userId','storeId','appointmentTime','status','orderId'],
  addresses:['userId','name','phone','city','detail','isDefault'],
  claims:['userId','type','productIds','status','createdAt','completedAt'],

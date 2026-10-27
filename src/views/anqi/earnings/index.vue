@@ -1,14 +1,15 @@
 <template>
   <main class="income-page">
-    <header><div><h1>收益管理</h1><p>按套餐配置静态收益与邀请奖励，查看发放计划和实际入账明细。</p></div><el-button :loading="loading" :disabled="saving" @click="load">刷新</el-button></header>
+    <header><div><h1>收益管理</h1><p>配置认证股东的分配与一级邀请奖励，查看发放计划和实际入账明细。</p></div><el-button :loading="loading" :disabled="saving" @click="load">刷新</el-button></header>
     <el-alert v-if="error" :title="error" type="error" :closable="false" show-icon/>
-    <ShareholderProgram :can-edit="canEdit" @changed="load"/>
+    <WalletProgram :can-edit="canEdit" @changed="walletChanged"/>
+    <ShareholderProgram :key="programKey" :can-edit="canEdit" @changed="load"/>
     <el-tabs v-model="tab">
       <el-tab-pane name="rules" label="收益规则">
         <section class="referral" aria-label="推荐奖励">
           <div class="referral-head"><div><h2>推荐奖励 · 直接推荐人</h2><p class="help">{{referralText}}</p></div><el-button v-if="canEdit&&!referralEditing" type="primary" plain :disabled="saving||!!editing" @click="editReferral">配置</el-button></div>
           <el-form v-if="referralEditing" label-position="top" :disabled="saving" @submit.prevent="saveReferral">
-            <p class="help">只奖励被推荐人注册时绑定的直接推荐人。首单指被推荐人第一笔已付款且未退款的适用订单，按付款时间判断，启用前的历史订单也计入。启用后各套餐的多级动态收益不再发放，避免重复奖励。保存只影响之后创建的订单。</p>
+            <p class="help">只奖励被推荐人注册时绑定的直接推荐人。首单指被推荐人第一笔已付款且未退款的适用订单，按付款时间判断，启用前的历史订单也计入。启用后套餐动态收益不再发放，避免重复奖励。保存只影响之后创建的订单。</p>
             <el-form-item label="是否启用"><el-switch v-model="referralForm.enabled" active-text="启用" inactive-text="关闭"/></el-form-item>
             <div class="referral-fields">
               <el-form-item label="首单奖励比例（%）"><el-input-number v-model="referralForm.firstPercent" :min="0" :max="100" :precision="2"/></el-form-item>
@@ -17,7 +18,7 @@
               <el-form-item label="起算条件"><el-select v-model="referralForm.trigger"><el-option value="paid" label="确认收款后"/><el-option value="completed" label="订单完成后（套餐全部核销后）"/></el-select></el-form-item>
               <el-form-item label="入账等待天数（0为立即）"><el-input-number v-model="referralForm.delayDays" :min="0" :max="3650" :precision="0"/></el-form-item>
               <el-form-item label="推荐有效天数（从被推荐人注册起算，0为不限）"><el-input-number v-model="referralForm.durationDays" :min="0" :max="3650" :precision="0"/></el-form-item>
-              <el-form-item v-if="!shareholderMode" label="推荐人须办卡"><el-switch v-model="referralForm.requireCard" active-text="推荐人本人办了VIP卡才计奖励" inactive-text="不限"/></el-form-item>
+              <p class="help">新订单仅向付款时仍具分享资格的认证股东计推荐奖励。</p>
             </div>
             <el-form-item label="整单退款时"><el-select v-model="referralForm.refundPolicy" class="refund-select"><el-option value="reverse" label="取消未入账计划，并冲回已入账奖励"/><el-option value="retain" label="取消未入账计划，保留已入账奖励"/></el-select></el-form-item>
             <section class="preview" aria-label="推荐奖励试算"><h3>保存前试算</h3><el-form-item label="示例订单实付金额（元）"><el-input-number v-model="referralPreviewTotal" :min="0" :max="10000000" :precision="2"/></el-form-item><p>首单：推荐人得 ¥{{money(referralCents(referralForm.firstPercent)/100)}}；之后每单：推荐人得 ¥{{money(referralCents(referralForm.laterPercent)/100)}}。</p></section>
@@ -26,9 +27,9 @@
           </el-form>
         </section>
         <section class="referral" v-if="!shareholderMode" aria-label="分红池">
-          <div class="referral-head"><div><h2>分红池 · 办卡会员（静态收益）</h2><p class="help">{{poolText}}</p></div><el-button v-if="canEdit&&!poolEditing" type="primary" plain :disabled="saving||!!editing" @click="editPool">配置</el-button></div>
+          <div class="referral-head"><div><h2>分红池 · 认证股东（静态收益）</h2><p class="help">{{poolText}}</p></div><el-button v-if="canEdit&&!poolEditing" type="primary" plain :disabled="saving||!!editing" @click="editPool">配置</el-button></div>
           <el-form v-if="poolEditing" label-position="top" :disabled="saving" @submit.prevent="savePool">
-            <p class="help">每个周期按北京时间结束后自动结算一次，按办卡金额比例分配奖池。设置活动天数（如3天）时，每轮第1天分给当天办卡的会员，第2天分给第1–2天办卡的会员，第3天分给第1–3天办卡的会员，之后开始新一轮；活动天数为0时分给全部持有已付款、未退款VIP套餐的会员，分到元角分，零头按比例补齐。退款或停用的会员从下一期起不再参与，已发分红不冲回。启用后各套餐的静态收益不再对新订单发放。不补发启用前或关闭期间的周期。</p>
+            <p class="help">每个周期按北京时间结束后自动结算一次，仅向已购买套餐且经门店认证的股东按办卡金额分配。活动天数控制每轮纳入哪些已付款订单；退款、停用或撤销认证后不再参与后续分配，已结算记录保留。启用后各套餐的静态收益不再对新订单发放。不补发启用前或关闭期间的周期。</p>
             <el-form-item label="是否启用"><el-switch v-model="poolForm.enabled" active-text="启用" inactive-text="关闭"/></el-form-item>
             <div class="referral-fields">
               <el-form-item label="奖池来源"><el-select v-model="poolForm.source"><el-option value="revenue" label="当期营业额（全部已付款订单）× 比例"/><el-option value="sales" label="当期新增办卡金额 × 比例"/><el-option value="fixed" label="固定奖池：基数 × 比例"/></el-select></el-form-item>
@@ -44,7 +45,7 @@
           </el-form>
         </section>
         <h2 class="package-title">VIP套餐收益</h2>
-        <p class="help">静态收益给购买套餐的会员；动态收益按其注册时绑定的邀请关系逐级奖励。保存仅影响之后创建的新订单，未配置的套餐不产生收益。</p>
+        <p class="help">购买套餐后仍需门店认证股东，才能参与新分红；邀请奖励只计算直接推荐人。保存仅影响之后创建的新订单，历史收益记录保留。</p>
         <el-table :data="products" v-loading="loading" stripe empty-text="暂无VIP套餐，请先配置套餐商品">
           <el-table-column prop="name" label="套餐" min-width="190"/>
           <el-table-column label="静态收益" min-width="200"><template #default="{row}">{{staticText(ruleFor(row.id)?.static)}}</template></el-table-column>
@@ -55,12 +56,12 @@
         <section v-if="editing" ref="editorElement" class="editor">
           <h2>{{editing.name}}</h2><p class="help">正在编辑第 {{form.revision+1}} 版，旧订单沿用下单时的版本。停用规则会停止新订单参与，已生成的计划继续履行。</p>
           <el-form label-position="top" :disabled="saving" @submit.prevent="save">
-            <h3>静态收益 · 购买会员</h3><el-alert v-if="pool.enabled" type="warning" :closable="false" show-icon title="分红池已启用，新订单不再发放此处的静态收益；如需恢复，请先在上方关闭分红池。"/><RulePart v-model="form.static" periodic/>
-            <h3>动态收益 · 邀请人</h3><el-alert v-if="referral.enabled" type="warning" :closable="false" show-icon title="推荐奖励已启用，新订单不再发放此处的动态收益；如需恢复，请先在上方关闭推荐奖励。"/><p class="help">第1级是直接邀请人，第2级是邀请人的邀请人，依次类推。下单时没有该层级或该邀请人已停用时不奖励，也不向其他层级补位。</p>
-            <div v-for="(part,index) in form.dynamic" :key="index" class="dynamic-level"><div class="level-heading"><h4>第 {{index+1}} 级邀请奖励</h4><el-button v-if="index===form.dynamic.length-1" link type="danger" @click="form.dynamic.pop()">移除此级</el-button></div><RulePart v-model="form.dynamic[index]"/></div>
-            <el-button :disabled="form.dynamic.length>=10" @click="form.dynamic.push(blankPart())">添加一级邀请奖励（最多10级）</el-button>
+            <h3>静态收益 · 认证股东</h3><el-alert v-if="pool.enabled" type="warning" :closable="false" show-icon title="分红池已启用，新订单不再发放此处的静态收益；如需恢复，请先在上方关闭分红池。"/><RulePart v-model="form.static" periodic/>
+            <h3>动态收益 · 直接推荐人</h3><el-alert v-if="referral.enabled" type="warning" :closable="false" show-icon title="推荐奖励已启用，新订单不再发放此处的动态收益；如需恢复，请先在上方关闭推荐奖励。"/><p class="help">只计算直接推荐人。旧规则的多级记录仍可查询，新订单不再产生第二级及以后奖励。</p>
+            <div v-for="(part,index) in form.dynamic" :key="index" class="dynamic-level"><div class="level-heading"><h4>一级邀请奖励</h4><el-button link type="danger" @click="form.dynamic.pop()">移除</el-button></div><RulePart v-model="form.dynamic[index]"/></div>
+            <el-button :disabled="form.dynamic.length>=1" @click="form.dynamic.push(blankPart())">添加直接推荐奖励</el-button>
             <h3>退款处理</h3><el-form-item label="整单退款时"><el-select v-model="form.refundPolicy" class="refund-select"><el-option value="reverse" label="取消未入账计划，并冲回已入账收益"/><el-option value="retain" label="取消未入账计划，保留已入账收益"/></el-select></el-form-item>
-            <section class="preview" aria-label="收益试算"><h3>保存前试算</h3><el-form-item label="示例订单实付金额（元）"><el-input-number v-model="previewTotal" :min="0" :max="10000000" :precision="2"/></el-form-item><p>购买会员：每期 ¥{{money(previewStatic)}}，共 {{form.static.enabled?form.static.periods:0}} 期，合计 ¥{{money(previewStatic*(form.static.periods||0))}}。</p><p>全部配置层级都有合格邀请人时，动态收益合计 ¥{{money(previewDynamic)}}。</p><p class="help">此处为规则试算。到期金额会计入收益账本，当前不包含微信提现或自动转账。</p></section>
+            <section class="preview" aria-label="收益试算"><h3>保存前试算</h3><el-form-item label="示例订单实付金额（元）"><el-input-number v-model="previewTotal" :min="0" :max="10000000" :precision="2"/></el-form-item><p>已认证股东：每期 ¥{{money(previewStatic)}}，共 {{form.static.enabled?form.static.periods:0}} 期，合计 ¥{{money(previewStatic*(form.static.periods||0))}}。</p><p>直接推荐人符合资格时，邀请收益 ¥{{money(previewDynamic)}}。</p><p class="help">此处为规则试算。到期金额会计入收益账本，当前不包含微信提现或自动转账。</p></section>
             <el-alert v-if="saveError" :title="saveError" type="error" :closable="false" show-icon/>
             <div class="actions"><el-button type="primary" native-type="submit" :loading="saving">保存规则</el-button><el-button :disabled="saving" @click="editing=null">取消编辑</el-button></div>
           </el-form>
@@ -139,24 +140,27 @@ import useUserStore from '@/store/modules/user'
 import {chineseTime} from '../presentation'
 import RulePart from './RulePart.vue'
 import ShareholderProgram from './ShareholderProgram.vue'
+import WalletProgram from './WalletProgram.vue'
+const programKey=ref(0)
+function walletChanged(){programKey.value++;load()}
 const shareholderMode=ref(false)
 const products=ref([]),rules=ref([]),plans=ref([]),records=ref([]),users=ref([]),loading=ref(false),saving=ref(false),error=ref(''),saveError=ref(''),tab=ref('rules'),editing=ref(null),form=ref({}),previewTotal=ref(0),editorElement=ref(null),keyword=ref(''),kind=ref('')
 const allowed=p=>useUserStore().permissions.some(v=>v==='*:*:*'||v===p),canEdit=computed(()=>allowed('anqi:earnings:edit'))
 const blankPart=()=>({enabled:false,mode:'fixed',value:0,trigger:'paid',delayDays:0})
 const money=v=>Number(v||0).toFixed(2),date=v=>chineseTime(v),ruleFor=id=>rules.value.find(r=>r.productId===id)
 const userName=id=>users.value.find(u=>u.id===id)?.name||id
-const typeText=r=>r.source==='shareholder'?'每日分配':r.source==='pool'?'分红池':r.type==='static'?'静态收益':r.source==='referral'?'推荐 · '+(r.tier==='first'?'首单':'后续'):r.type==='dynamic'?'动态 · 第'+r.level+'级':'历史收益'
-const staticText=p=>shareholderMode.value?'由股东每日分配替代':pool.value.enabled?'由分红池替代':p?.enabled?`${p.mode==='percent'?p.value+'%':'¥'+money(p.value)} / 期，共${p.periods}期`:'未启用'
-const dynamicText=r=>referral.value.enabled?'由推荐奖励替代':r?.dynamic.some(p=>p.enabled)?r.dynamic.filter(p=>p.enabled).map(p=>'第'+p.level+'级').join('、'):'未启用'
+const typeText=r=>r.source==='recharge'?'充值分红':r.source==='shareholder'?'每日分配':r.source==='pool'?'分红池':r.type==='static'?'静态收益':r.source==='referral'?'推荐 · '+(r.tier==='first'?'首单':'后续'):r.type==='dynamic'?'动态 · 第'+r.level+'级':'历史收益'
+const staticText=p=>shareholderMode.value?'由股东分红替代':pool.value.enabled?'由分红池替代':p?.enabled?`${p.mode==='percent'?p.value+'%':'¥'+money(p.value)} / 期，共${p.periods}期`:'未启用'
+const dynamicText=r=>referral.value.enabled?'由推荐奖励替代':r?.dynamic?.[0]?.enabled?'直接推荐人':'未启用'
 function cents(p){return !p?.enabled?0:p.mode==='fixed'?Math.round(p.value*100):Math.floor((Math.round((previewTotal.value||0)*100)*Math.round(p.value*100)+5000)/10000)}
 const previewStatic=computed(()=>cents(form.value.static)/100),previewDynamic=computed(()=>form.value.dynamic?.reduce((n,p)=>n+cents(p),0)/100||0)
 function filtered(rows){const q=keyword.value.trim().toLowerCase();return rows.filter(r=>(!kind.value||r.type===kind.value)&&(!q||[r.name,r.productName,r.orderId,userName(r.userId)].join(' ').toLowerCase().includes(q)))}
 let sequence=0
 async function load(){const seq=++sequence;loading.value=true;error.value='';try{const [a,b,c,u,d]=await Promise.all([request({url:'/anqi/incomeRules'}),request({url:'/anqi/incomePlans'}),request({url:'/anqi/earnings'}),allowed('anqi:users:list')?request({url:'/anqi/users'}):Promise.resolve({data:[]}),request({url:'/anqi/earnings/payouts'})]);if(seq===sequence){shareholderMode.value=!!a.data.shareholders?.rule?.activatedAt;products.value=a.data.products;rules.value=a.data.rules;referral.value=a.data.referral||{};pool.value=a.data.pool||{};poolOverview.value=a.data.poolOverview||{settlements:[]};plans.value=b.data;records.value=c.data;users.value=u.data;payoutData.value={...emptyPayouts(),...d.data}}}catch(e){if(seq===sequence)error.value=e.message||'加载失败，请刷新重试'}finally{if(seq===sequence)loading.value=false}}
-async function edit(product){editing.value=product;form.value=JSON.parse(JSON.stringify(ruleFor(product.id)||{revision:0,static:{...blankPart(),periods:1,intervalDays:1},dynamic:[],refundPolicy:'reverse'}));previewTotal.value=product.price;saveError.value='';await nextTick();editorElement.value?.scrollIntoView({block:'start',behavior:'smooth'})}
+async function edit(product){editing.value=product;form.value=JSON.parse(JSON.stringify(ruleFor(product.id)||{revision:0,static:{...blankPart(),periods:1,intervalDays:1},dynamic:[],refundPolicy:'reverse'}));form.value.dynamic=form.value.dynamic.slice(0,1);previewTotal.value=product.price;saveError.value='';await nextTick();editorElement.value?.scrollIntoView({block:'start',behavior:'smooth'})}
 async function save(){if(saving.value)return;saving.value=true;saveError.value='';try{await request({url:'/anqi/incomeRules/'+editing.value.id,method:'put',data:form.value});editing.value=null;ElMessage.success('规则已保存，将用于新订单');await load()}catch(e){saveError.value=e.message||'保存失败，已保留填写内容'}finally{saving.value=false}}
 const referral=ref({}),referralEditing=ref(false),referralForm=ref({}),referralError=ref(''),referralPreviewTotal=ref(6980)
-const referralText=computed(()=>{const r=referral.value;if(!r.revision)return '未启用。默认首单 50%、之后每单 10%，适用所有已付款订单，不限期；点击“配置”后启用。';const scope=r.scope==='vip'?'仅VIP套餐订单':'所有已付款订单',limit=r.durationDays?`注册后 ${r.durationDays} 天内`:'不限期';return `${r.enabled?'已启用':'已关闭'}：首单 ${r.firstPercent}%，之后每单 ${r.laterPercent}%，${scope}，${limit}${shareholderMode.value?'，推荐人须为认证股东':r.requireCard?'，推荐人须已办VIP卡（办卡前的订单不补发）':''}（第 ${r.revision} 版）`})
+const referralText=computed(()=>{const r=referral.value;if(!r.revision)return '未启用。默认首单 50%、之后每单 10%；新订单仅向认证股东计推荐奖励。';const scope=r.scope==='vip'?'仅VIP套餐订单':'所有已付款订单',limit=r.durationDays?`注册后 ${r.durationDays} 天内`:'不限期';return `${r.enabled?'已启用':'已关闭'}：首单 ${r.firstPercent}%，之后每单 ${r.laterPercent}%，${scope}，${limit}，推荐人须为认证股东（第 ${r.revision} 版）`})
 function referralCents(percent){return Math.floor((Math.round((referralPreviewTotal.value||0)*100)*Math.round((percent||0)*100)+5000)/10000)}
 function editReferral(){referralForm.value=JSON.parse(JSON.stringify(referral.value));referralError.value='';referralEditing.value=true}
 async function saveReferral(){if(saving.value)return;saving.value=true;referralError.value='';try{await request({url:'/anqi/incomeRules/referral',method:'put',data:referralForm.value});referralEditing.value=false;ElMessage.success('推荐奖励已保存，将用于新订单');await load()}catch(e){referralError.value=e.message||'保存失败，已保留填写内容'}finally{saving.value=false}}
@@ -165,8 +169,8 @@ const cycleNames={daily:'每天',weekly:'每周',monthly:'每月'},periodsPerMon
 const beijingDay=ms=>new Date(ms+8*3600000).toISOString().slice(0,10)
 const fixedPool=r=>Math.round((r.baseAmount||0)*(r.percent||0))/100
 const poolSize=r=>r.source==='fixed'?`奖池 ¥${money(fixedPool(r))}（¥${money(r.baseAmount)} × ${r.percent}%）`:r.source==='sales'?`奖池为当期新增办卡金额 × ${r.percent}%`:`奖池为当期营业额 × ${r.percent}%`
-const poolText=computed(()=>{const r=pool.value,o=poolOverview.value;if(!r.revision)return '未启用。默认每天结算，奖池为当天营业额（全部已付款订单）× 5%，3天一轮：按办卡金额比例分给本轮已办卡的会员；点击“配置”后启用。';const live=r.enabled&&r.source!=='fixed'?`本期到目前${r.source==='sales'?'新增办卡':'营业额'} ¥${money(o.currentIncome)}，预计奖池 ¥${money(o.estimatedPool)}；`:'';const round=o.activity?`第 ${o.activity.round} 轮活动第 ${o.activity.day} 天（每轮 ${o.activity.days} 天）；`:'';return r.enabled?`已启用：${cycleNames[r.cycle]}结算，${poolSize(r)}；${round}${live}当前参与 ${o.members||0} 位办卡会员，办卡总额 ¥${money(o.totalWeight)}，下一次结算 ${o.nextSettlementAt?date(o.nextSettlementAt):'—'}（第 ${r.revision} 版）`:`已关闭：${cycleNames[r.cycle]}结算，${poolSize(r)}（第 ${r.revision} 版）`})
-const poolPreview=computed(()=>{const f=poolForm.value,o=poolOverview.value,total=o.totalWeight||0,pct=f.percent||0;const share=amount=>total?`按当前 ${o.members} 位会员（办卡总额 ¥${money(total)}），办卡 ¥6,980 的会员每期约得 ¥${money(amount*6980/total)}。`:'当前暂无办卡会员，有会员办卡后才会分配。';if(f.source==='fixed'){const each=fixedPool(f);return `每期奖池 ¥${money(each)}，${cycleNames[f.cycle]}结算，每月预计支出约 ¥${money(each*periodsPerMonth[f.cycle])}。${share(each)}`}const what=f.source==='sales'?'当期新增办卡金额':'当期营业额（全部已付款订单）';const rounds=f.cycle==='daily'&&f.activityDays>0?`每 ${f.activityDays} 天一轮，第1天分给当天办卡的会员，之后每天累加本轮已办卡的会员，第 ${f.activityDays+1} 天开始新一轮。`:'';return `每期奖池 = ${what} × ${pct}%，例如当期${f.source==='sales'?'新增办卡':'营业额'} ¥100,000 时奖池为 ¥${money(1000*pct)}，营业额为 0 时不分配。${rounds}${share(1000*pct)}`})
+const poolText=computed(()=>{const r=pool.value,o=poolOverview.value;if(!r.revision)return '未启用。默认每天结算，奖池为当天营业额（全部已付款订单）× 5%，3天一轮：仅向本轮符合条件的认证股东按办卡金额分配；点击“配置”后启用。';const live=r.enabled&&r.source!=='fixed'?`本期到目前${r.source==='sales'?'新增办卡':'营业额'} ¥${money(o.currentIncome)}，预计奖池 ¥${money(o.estimatedPool)}；`:'';const round=o.activity?`第 ${o.activity.round} 轮活动第 ${o.activity.day} 天（每轮 ${o.activity.days} 天）；`:'';return r.enabled?`已启用：${cycleNames[r.cycle]}结算，${poolSize(r)}；${round}${live}当前参与 ${o.members||0} 位认证股东，办卡总额 ¥${money(o.totalWeight)}，下一次结算 ${o.nextSettlementAt?date(o.nextSettlementAt):'—'}（第 ${r.revision} 版）`:`已关闭：${cycleNames[r.cycle]}结算，${poolSize(r)}（第 ${r.revision} 版）`})
+const poolPreview=computed(()=>{const f=poolForm.value,o=poolOverview.value,total=o.totalWeight||0,pct=f.percent||0;const share=amount=>total?`按当前 ${o.members} 位认证股东（办卡总额 ¥${money(total)}），已认证且办卡 ¥6,980 的股东每期约得 ¥${money(amount*6980/total)}。`:'当前暂无认证股东，门店认证后才会参与分配。';if(f.source==='fixed'){const each=fixedPool(f);return `每期奖池 ¥${money(each)}，${cycleNames[f.cycle]}结算，每月预计支出约 ¥${money(each*periodsPerMonth[f.cycle])}。${share(each)}`}const what=f.source==='sales'?'当期新增办卡金额':'当期营业额（全部已付款订单）';const rounds=f.cycle==='daily'&&f.activityDays>0?`每 ${f.activityDays} 天一轮，第1天分给当天办卡的会员，之后每天累加本轮已办卡的会员，第 ${f.activityDays+1} 天开始新一轮。`:'';return `每期奖池 = ${what} × ${pct}%，例如当期${f.source==='sales'?'新增办卡':'营业额'} ¥100,000 时奖池为 ¥${money(1000*pct)}，营业额为 0 时不分配。${rounds}${share(1000*pct)}`})
 function editPool(){poolForm.value=JSON.parse(JSON.stringify(pool.value));poolError.value='';poolEditing.value=true}
 async function savePool(){if(saving.value)return;saving.value=true;poolError.value='';try{await request({url:'/anqi/incomeRules/pool',method:'put',data:poolForm.value});poolEditing.value=false;ElMessage.success('分红池已保存');await load()}catch(e){poolError.value=e.message||'保存失败，已保留填写内容'}finally{saving.value=false}}
 // 收益兑现：每次打开登记框生成一个登记编号，网络重试不会重复登记

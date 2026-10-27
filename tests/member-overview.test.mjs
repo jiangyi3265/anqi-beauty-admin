@@ -6,8 +6,10 @@ const income=createRequire(import.meta.url)('../../anqi-beauty-app/server/income
 const now=Date.parse('2026-10-25T02:00:00Z')
 const users=[{id:'a'},{id:'b'},{id:'off',disabled:true},{id:'no',incomeAccess:{static:false}},{id:'preview',membershipPreview:{displayOnly:true,name:'黄金VIP会员'}}]
 const order=(id,userId,total,extra={})=>({id,userId,total,product:{name:total===13800?'铂金VIP套餐':'钻石VIP套餐',price:total,packagePlans:[{}]},paymentStatus:'paid',status:'ready',paidAt:'2026-10-24T02:00:00Z',createdAt:'2026-10-24T02:00:00Z',...extra})
-function run(orders,extra={}){
- const db={users:structuredClone(users),orders,products:[],config:{poolReward:{enabled:true,percent:5,source:'revenue',cycle:'daily',activityDays:0,startDate:'2026-10-22',...extra}}}
+function run(orders,extra={},uncertifiedIds=[]){
+ const members=structuredClone(users)
+ for(const member of members){const proof=orders.find(o=>o.userId===member.id&&o.product?.packagePlans?.length&&o.paymentStatus==='paid');if(proof&&!uncertifiedIds.includes(member.id))member.shareholder={approved:true,planId:'test',orderId:proof.id,approvedAt:proof.paidAt}}
+ const db={users:members,orders,products:[],config:{shareholderProgram:{plans:[{id:'test',name:'测试方案',units:1,enabled:true}]},poolReward:{enabled:true,percent:5,source:'revenue',cycle:'daily',activityDays:0,startDate:'2026-10-22',...extra}}}
  const clock=Date.now;Date.now=()=>now;let rules;try{rules=income.manage(db,'GET')}finally{Date.now=clock};const before=JSON.stringify(db)
  const view=memberOverview(db.users,orders,rules,now)
  assert.equal(JSON.stringify(db),before,'projection must not mutate data')
@@ -18,6 +20,12 @@ test('real payments determine shares; preview is not a paid membership',()=>{
  assert.equal(v.members.get('a').level,'铂金VIP会员');assert.equal(v.members.get('a').amount,13800)
  assert.ok(Math.abs(v.members.get('a').share-13800/40600*100)<1e-10)
  assert.equal(v.members.get('preview').amount,0);assert.equal(v.members.get('preview').level,'普通会员')
+})
+test('paid VIP without store certification has no dividend share',()=>{
+ const v=run([order('1','a',13800),order('2','b',26800)],{},['b'])
+ assert.equal(v.members.get('a').share,100)
+ assert.equal(v.members.get('b').amount,0)
+ assert.equal(v.members.get('b').reason,'未认证股东')
 })
 test('multiple cards use paid total; refunds, pending and disabled accounts excluded',()=>{
  const v=run([order('1','a',13800),order('2','a',26800),order('3','b',500,{refundStatus:'refunded',refundAt:'2026-10-24T03:00:00Z'}),order('4','off',100),order('5','no',100),order('6','b',100,{paymentStatus:'unpaid',status:'pending'})])
